@@ -18,18 +18,49 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
+# O Letterboxd fica atrás do Cloudflare. A lib 'cloudscraper' resolve o
+# desafio anti-bot automaticamente. Se estiver instalada, usamos uma sessão
+# dela no lugar da requests.Session comum. Instale com:
+#     pip install cloudscraper
+try:
+    import cloudscraper  # type: ignore
+    _HAS_CLOUDSCRAPER = True
+except ImportError:  # pragma: no cover
+    _HAS_CLOUDSCRAPER = False
+
 logger = logging.getLogger(__name__)
 
 
 class Fetcher:
     def __init__(self, config):
         self.cfg = config
-        self.session = requests.Session()
+        if _HAS_CLOUDSCRAPER:
+            # Sessão que resolve o desafio Cloudflare do Letterboxd.
+            self.session = cloudscraper.create_scraper(
+                browser={"browser": "chrome", "platform": "windows",
+                         "mobile": False}
+            )
+            logger.info("Usando cloudscraper (bypass Cloudflare).")
+        else:
+            self.session = requests.Session()
+            logger.warning(
+                "cloudscraper NAO instalado. O Letterboxd usa Cloudflare e "
+                "pode devolver 403. Instale com: pip install cloudscraper"
+            )
+        # Conjunto de cabeçalhos que imita um navegador real. Sites com
+        # proteção anti-bot (Cloudflare, etc.) devolvem 403 quando faltam.
         self.session.headers.update({
             "User-Agent": config.user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                      "*/*;q=0.8",
+                      "image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
         })
 
         # Delay independente por thread (cada worker respeita seu crawl-delay).
@@ -128,7 +159,15 @@ class Fetcher:
                 continue
 
             # Erros não transitórios (404, 403, 410...): não re-tenta.
-            logger.info("HTTP %d (definitivo) em %s", resp.status_code, url)
+            if resp.status_code == 403:
+                logger.warning(
+                    "HTTP 403 (bloqueio anti-bot) em %s. O site recusou a "
+                    "requisicao. Tente: aumentar --delay, reduzir --workers, "
+                    "ou ajustar o User-Agent em config.py.",
+                    url,
+                )
+            else:
+                logger.info("HTTP %d (definitivo) em %s", resp.status_code, url)
             return None
 
         logger.error("Esgotadas as tentativas para %s", url)

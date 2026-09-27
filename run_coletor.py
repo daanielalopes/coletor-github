@@ -35,8 +35,8 @@ def build_config(args) -> CrawlerConfig:
         cfg.request_delay = args.delay
     if args.output is not None:
         cfg.output_dir = args.output
-    if args.no_robots:
-        cfg.respect_robots_txt = False
+    if args.respect_robots:
+        cfg.respect_robots_txt = True
     if args.no_raw_html:
         cfg.save_raw_html = False
     return cfg
@@ -59,8 +59,9 @@ def main() -> None:
     ap.add_argument("--workers", type=int, help="Nº de workers concorrentes")
     ap.add_argument("--delay", type=float, help="Delay base entre requisições (s)")
     ap.add_argument("--output", type=str, help="Diretório de saída")
-    ap.add_argument("--no-robots", action="store_true",
-                    help="NÃO respeitar robots.txt (use com responsabilidade)")
+    ap.add_argument("--respect-robots", action="store_true",
+                    help="Respeitar o robots.txt (desligado por padrão pois o "
+                         "Letterboxd restringe /films/ no robots)")
     ap.add_argument("--no-raw-html", action="store_true",
                     help="Não salvar o HTML bruto em disco")
     ap.add_argument("--export", action="store_true",

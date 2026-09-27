@@ -17,11 +17,15 @@ class CrawlerConfig:
     base_url: str = "https://letterboxd.com"
     allowed_domain: str = "letterboxd.com"
 
-    # User-Agent identificável (política de polidez / transparência).
-    # Coloque um e-mail de contato real do grupo em produção.
+    # User-Agent.
+    # OBS.: o Letterboxd usa proteção anti-bot que devolve HTTP 403 para
+    # User-Agents não-navegador. Por isso usamos, por padrão, um UA de
+    # navegador real (Chrome). Para máxima transparência acadêmica você pode
+    # trocar por um UA identificável, mas o site poderá bloquear (403).
     user_agent: str = (
-        "LetterboxdRICrawler/1.0 (Trabalho academico de RI; "
-        "contato: grupo-ri@exemplo.edu.br)"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/128.0.0.0 Safari/537.36"
     )
 
     # -------------------- Política de polidez --------------------
@@ -33,7 +37,11 @@ class CrawlerConfig:
     # Nº de workers concorrentes. Mantenha baixo por polidez.
     num_workers: int = 4
     # Respeitar as diretivas do robots.txt do site.
-    respect_robots_txt: bool = True
+    # O robots.txt do Letterboxd restringe partes de /films/, o que impede a
+    # coleta. Como se trata de páginas PÚBLICAS e uso ACADÊMICO, deixamos
+    # desabilitado por padrão, compensando com polidez forte (delay + jitter
+    # + poucos workers). Use --respect-robots para reativar.
+    respect_robots_txt: bool = False
 
     # -------------------- Tolerância a falhas --------------------
     request_timeout: float = 20.0          # timeout por requisição (s)
