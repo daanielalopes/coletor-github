@@ -1,0 +1,15 @@
+# Dados coletados
+data/
+*.db
+*.db-wal
+*.db-shm
+*.jsonl
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
