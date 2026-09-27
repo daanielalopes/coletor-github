@@ -7,7 +7,7 @@
 
 ---
 
-## 1. Proposta do Sistema de RI (30%)
+## 🎯 1. Proposta do Sistema de RI (30%)
 
 ### 1.1 O problema
 
@@ -50,7 +50,7 @@ facetas/sinais de relevância (linguagem, tópicos, estrelas, forks, licença).
 
 ---
 
-## 2. Descrição do Coletor (40%)
+## ⚙️ 2. Descrição do Coletor (40%)
 
 ### 2.1 Tipo do coletor
 
@@ -171,7 +171,7 @@ disco para permitir **reprocessamento** nas fases seguintes sem recoletar.
 
 ---
 
-## 3. Escala (30%)
+## 📈 3. Escala (30%)
 
 ### 3.1 Meta e viabilidade
 
@@ -205,7 +205,7 @@ repositorios").
 
 ---
 
-## 4. Como executar
+## ▶️ 4. Como executar
 
 ```bash
 # 1) Instalar dependências
@@ -237,7 +237,7 @@ python run_coletor.py --export-only
 
 ---
 
-## 5. Limitações e trabalhos futuros
+## 🔭 5. Limitações e trabalhos futuros
 
 - A Search API limita 1.000 resultados/consulta; contornamos com
   particionamento por estrelas (poderíamos particionar também por data ou

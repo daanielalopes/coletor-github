@@ -1,8 +1,8 @@
-# Coletor de Repositórios do GitHub
+# 🗂️ Coletor de Repositórios do GitHub
 
 Primeira etapa do trabalho de Recuperação da Informação: o coletor de dados.
 
-## Objetivo
+## 🎯 Objetivo
 
 Esta etapa tem como objetivo construir um acervo de repositórios públicos do
 GitHub, que será utilizado posteriormente nas fases de indexação e de busca. No
@@ -16,13 +16,13 @@ Para cada repositório são armazenados os seguintes campos: descrição, README
 linguagem, tópicos, número de estrelas, número de forks, licença, datas
 relevantes e informações do proprietário (usuário ou organização).
 
-## Requisitos
+## 📋 Requisitos
 
 - Python 3
 - Biblioteca `requests` (instalada via `pip install -r requirements.txt`)
 - Um token de acesso pessoal do GitHub (gratuito)
 
-## Token do GitHub
+## 🔑 Token do GitHub
 
 Sem autenticação, a API do GitHub permite apenas 60 requisições por hora, o que
 é insuficiente para uma coleta em larga escala. Com um token pessoal, esse
@@ -40,7 +40,7 @@ Em seguida, defina o token antes da execução:
 Alternativamente, copie o arquivo `.env.example` para `.env` e informe o token
 nesse arquivo.
 
-## Execução
+## ▶️ Execução
 
 Instalação das dependências:
 
@@ -63,7 +63,7 @@ Se a coleta for interrompida, basta executar o mesmo comando novamente: o
 progresso é salvo no banco de dados e a coleta prossegue a partir do ponto em
 que parou.
 
-## Dados gerados
+## 💾 Dados gerados
 
 Todos os arquivos são gravados no diretório `data/`:
 
@@ -78,7 +78,7 @@ Para consultar a quantidade de itens coletados:
     sqlite3 data/github.db "SELECT COUNT(*) FROM repositories;"
     sqlite3 data/github.db "SELECT COUNT(*) FROM users;"
 
-## Estratégia de escala
+## 📈 Estratégia de escala
 
 A API de busca do GitHub retorna no máximo 1000 resultados por consulta. Para
 superar esse limite, a coleta é dividida em diversas consultas segmentadas pelo
@@ -90,7 +90,7 @@ repositórios.
 Os detalhes completos estão descritos no relatório
 (`RELATORIO_PARTE1_COLETOR.md`).
 
-## Organização dos arquivos
+## 📁 Organização dos arquivos
 
     coletor/config.py    configurações (token, limites e estratégia de busca)
     coletor/fetcher.py   requisições à API e tratamento do limite de uso
