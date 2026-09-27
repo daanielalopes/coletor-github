@@ -1,7 +1,5 @@
 # 🗂️ Coletor de Repositórios do GitHub
 
-Primeira etapa do trabalho de Recuperação da Informação: o coletor de dados.
-
 ## 🎯 Objetivo
 
 Esta etapa tem como objetivo construir um acervo de repositórios públicos do
