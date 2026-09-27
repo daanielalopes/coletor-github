@@ -3,7 +3,8 @@
 **Fonte de dados:** GitHub (via API REST oficial — `api.github.com`)
 **Documento coletado:** repositórios públicos (+ perfis dos proprietários)
 **Linguagem:** Python 3
-**Grupo:** _(preencher com os nomes dos integrantes)_
+**Grupo:** Camila de Paula Rodrigues, Daniela da Silva Lopes, Luísa Ferreira Marques, Luisa Sapori e Thiago Lacerda Santos Barbosa
+
 
 ---
 
