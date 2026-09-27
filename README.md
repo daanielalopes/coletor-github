@@ -1,86 +1,99 @@
-# Coletor de repositórios do GitHub
+# Coletor de Repositórios do GitHub
 
-Primeira parte do trabalho de Recuperação da Informação (o coletor).
+Primeira etapa do trabalho de Recuperação da Informação: o coletor de dados.
 
-A ideia é montar um acervo de repositórios públicos do GitHub para depois
-indexar e permitir busca. Nesta etapa só coletamos os dados.
+## Objetivo
 
-Usamos a API oficial do GitHub em vez de ficar raspando HTML, porque a API
-devolve tudo em JSON e não bloqueia acesso. De cada repositório a gente guarda
-descrição, README, linguagem, tópicos, estrelas, forks, licença, datas e o dono
-(usuário ou organização).
+Esta etapa tem como objetivo construir um acervo de repositórios públicos do
+GitHub, que será utilizado posteriormente nas fases de indexação e de busca. No
+momento, o foco está exclusivamente na coleta e no armazenamento dos dados.
 
-## O que precisa
+A coleta é realizada por meio da API oficial do GitHub, e não por extração de
+conteúdo das páginas HTML. Essa decisão se justifica porque a API retorna os
+dados de forma estruturada em JSON e não impõe bloqueios de acesso automatizado.
+
+Para cada repositório são armazenados os seguintes campos: descrição, README,
+linguagem, tópicos, número de estrelas, número de forks, licença, datas
+relevantes e informações do proprietário (usuário ou organização).
+
+## Requisitos
 
 - Python 3
-- A biblioteca `requests` (`pip install -r requirements.txt`)
-- Um token do GitHub (é de graça)
+- Biblioteca `requests` (instalada via `pip install -r requirements.txt`)
+- Um token de acesso pessoal do GitHub (gratuito)
 
 ## Token do GitHub
 
-Sem token a API só deixa fazer 60 requisições por hora, o que é pouco. Com um
-token pessoal sobe para 5000 por hora.
+Sem autenticação, a API do GitHub permite apenas 60 requisições por hora, o que
+é insuficiente para uma coleta em larga escala. Com um token pessoal, esse
+limite aumenta para 5000 requisições por hora.
 
-Para gerar: entre em https://github.com/settings/tokens, crie um token clássico.
-Para repositório público não precisa marcar nenhuma permissão.
+Para gerar o token, acesse https://github.com/settings/tokens e crie um token
+clássico. Para acesso a dados públicos não é necessário selecionar nenhuma
+permissão adicional.
 
-Depois é só definir o token antes de rodar:
+Em seguida, defina o token antes da execução:
 
     export GITHUB_TOKEN=seu_token_aqui        (Linux/Mac)
     $env:GITHUB_TOKEN="seu_token_aqui"        (Windows PowerShell)
 
-Ou então copie o arquivo `.env.example` para `.env` e cole o token lá dentro.
+Alternativamente, copie o arquivo `.env.example` para `.env` e informe o token
+nesse arquivo.
 
-## Como rodar
+## Execução
 
-Instalar:
+Instalação das dependências:
 
     pip install -r requirements.txt
 
-Teste com poucos repositórios primeiro, só pra ver se está tudo certo:
+Recomenda-se iniciar com uma coleta reduzida, para verificar o funcionamento:
 
     python run_coletor.py --target 200
 
-Coleta grande (mais de 50 mil). Sem baixar os READMEs fica bem mais rápido:
+Para a coleta completa (acima de 50 mil repositórios). A execução sem o
+download dos READMEs é consideravelmente mais rápida:
 
     python run_coletor.py --target 50000 --no-readme --export
 
-Se quiser os READMEs junto (demora mais):
+Caso deseje incluir os READMEs (execução mais demorada):
 
     python run_coletor.py --target 50000 --export
 
-Se a coleta parar no meio, é só rodar de novo o mesmo comando que ela continua
-de onde estava (o progresso fica salvo no banco).
+Se a coleta for interrompida, basta executar o mesmo comando novamente: o
+progresso é salvo no banco de dados e a coleta prossegue a partir do ponto em
+que parou.
 
-## Onde ficam os dados
+## Dados gerados
 
-Tudo dentro da pasta `data/`:
+Todos os arquivos são gravados no diretório `data/`:
 
-- `github.db` - banco SQLite com os repositórios e usuários
-- `raw_readme/` - os READMEs baixados
-- `repositories.jsonl` - os dados exportados, um repositório por linha (é o que
-  vamos usar na parte de indexação)
-- `crawler.log` - log do que aconteceu
+- `github.db` — banco de dados SQLite com os repositórios e usuários coletados
+- `raw_readme/` — arquivos de README obtidos durante a coleta
+- `repositories.jsonl` — dados exportados, um repositório por linha (formato
+  utilizado na etapa de indexação)
+- `crawler.log` — registro da execução
 
-Para ver quantos itens já foram coletados:
+Para consultar a quantidade de itens coletados:
 
     sqlite3 data/github.db "SELECT COUNT(*) FROM repositories;"
     sqlite3 data/github.db "SELECT COUNT(*) FROM users;"
 
-## Sobre a escala (chegar nos 50 mil)
+## Estratégia de escala
 
-A busca do GitHub só devolve no máximo 1000 resultados por pesquisa. Para passar
-disso, a gente divide a coleta em várias pesquisas por número de estrelas
-(repos com 5000 estrelas, com 4999, com 4998... e assim por diante). Cada
-pesquisa dessas fica abaixo do limite de 1000 e, somando todas, dá pra passar
-tranquilo dos 50 mil repositórios.
+A API de busca do GitHub retorna no máximo 1000 resultados por consulta. Para
+superar esse limite, a coleta é dividida em diversas consultas segmentadas pelo
+número de estrelas dos repositórios (repositórios com 5000 estrelas, com 4999,
+com 4998, e assim sucessivamente). Cada consulta permanece abaixo do limite de
+1000 resultados e, somadas, permitem ultrapassar com folga a marca de 50 mil
+repositórios.
 
-Os detalhes estão no relatório (`RELATORIO_PARTE1_COLETOR.md`).
+Os detalhes completos estão descritos no relatório
+(`RELATORIO_PARTE1_COLETOR.md`).
 
 ## Organização dos arquivos
 
-    coletor/config.py    - configurações (token, limites, estratégia de busca)
-    coletor/fetcher.py   - faz as requisições pra API e trata o limite de uso
-    coletor/storage.py   - salva no SQLite e nos arquivos
-    coletor/crawler.py   - junta tudo e controla a coleta
-    run_coletor.py       - arquivo que você executa
+    coletor/config.py    configurações (token, limites e estratégia de busca)
+    coletor/fetcher.py   requisições à API e tratamento do limite de uso
+    coletor/storage.py   armazenamento em SQLite e em arquivos
+    coletor/crawler.py   orquestração e controle da coleta
+    run_coletor.py       script principal de execução
