@@ -1,3 +1,6 @@
+# Segredos (NUNCA versionar o token!)
+.env
+
 # Dados coletados
 data/
 *.db

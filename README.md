@@ -1,81 +1,86 @@
-# Sistema de RI — Parte 1: Coletor (Letterboxd)
+# Coletor de repositórios do GitHub
 
-Coletor (web crawler focado) que adquire páginas de filmes do
-[Letterboxd](https://letterboxd.com) para alimentar um Sistema de Recuperação
-da Informação. Esta é a **Parte 1 (Coletor)** do trabalho.
+Primeira parte do trabalho de Recuperação da Informação (o coletor).
 
-> 📄 Relatório completo (proposta, coletor, escala):
-> [`RELATORIO_PARTE1_COLETOR.md`](RELATORIO_PARTE1_COLETOR.md)
+A ideia é montar um acervo de repositórios públicos do GitHub para depois
+indexar e permitir busca. Nesta etapa só coletamos os dados.
 
-## Estrutura
+Usamos a API oficial do GitHub em vez de ficar raspando HTML, porque a API
+devolve tudo em JSON e não bloqueia acesso. De cada repositório a gente guarda
+descrição, README, linguagem, tópicos, estrelas, forks, licença, datas e o dono
+(usuário ou organização).
 
-```
-letterboxd-ri/
-├── coletor/
-│   ├── config.py     # Todas as políticas/tolerâncias/critérios de parada
-│   ├── fetcher.py    # HTTP: polidez, robots.txt, retry/backoff
-│   ├── parser.py     # Descoberta de links + extração de metadados (JSON-LD)
-│   ├── storage.py    # SQLite + HTML bruto + estado (checkpoint)
-│   └── crawler.py    # Orquestração: fronteira, workers, parada
-├── run_coletor.py    # CLI (ponto de entrada)
-├── requirements.txt
-├── README.md
-└── RELATORIO_PARTE1_COLETOR.md
-```
+## O que precisa
 
-## Instalação
+- Python 3
+- A biblioteca `requests` (`pip install -r requirements.txt`)
+- Um token do GitHub (é de graça)
 
-```bash
-pip install -r requirements.txt
-```
+## Token do GitHub
 
-## Uso
+Sem token a API só deixa fazer 60 requisições por hora, o que é pouco. Com um
+token pessoal sobe para 5000 por hora.
 
-```bash
-# Teste rápido (100 filmes)
-python run_coletor.py --target 100 --workers 2 --delay 1.5
+Para gerar: entre em https://github.com/settings/tokens, crie um token clássico.
+Para repositório público não precisa marcar nenhuma permissão.
 
-# Coleta completa (>50 mil) + exportar JSONL
-python run_coletor.py --target 50000 --workers 4 --export
+Depois é só definir o token antes de rodar:
 
-# Retomar coleta interrompida (basta rodar de novo)
-python run_coletor.py --target 50000 --workers 4
+    export GITHUB_TOKEN=seu_token_aqui        (Linux/Mac)
+    $env:GITHUB_TOKEN="seu_token_aqui"        (Windows PowerShell)
 
-# Só exportar o que já foi coletado
-python run_coletor.py --export-only
-```
+Ou então copie o arquivo `.env.example` para `.env` e cole o token lá dentro.
 
-### Opções da CLI
+## Como rodar
 
-| Flag | Descrição |
-|------|-----------|
-| `--target N` | Meta de páginas de filme (critério de parada principal) |
-| `--workers N` | Nº de workers concorrentes |
-| `--delay S` | Delay base entre requisições, por worker (segundos) |
-| `--output DIR` | Diretório de saída (padrão: `data/`) |
-| `--no-robots` | Não respeitar robots.txt (use com responsabilidade) |
-| `--no-raw-html` | Não salvar o HTML bruto |
-| `--export` | Exportar `films.jsonl` ao final |
-| `--export-only` | Só exportar do banco existente e sair |
+Instalar:
 
-## Saídas (em `data/`)
+    pip install -r requirements.txt
 
-- `letterboxd.db` — metadados + estado do crawler (SQLite)
-- `raw_html/` — HTML bruto por página (reprocessamento)
-- `films.jsonl` — um documento/linha (entrada da Parte 2)
-- `crawler.log` — log de execução
+Teste com poucos repositórios primeiro, só pra ver se está tudo certo:
 
-## Verificar quantos filmes foram coletados
+    python run_coletor.py --target 200
 
-```bash
-sqlite3 data/letterboxd.db "SELECT COUNT(*) FROM films;"
-```
+Coleta grande (mais de 50 mil). Sem baixar os READMEs fica bem mais rápido:
 
-## Notas
+    python run_coletor.py --target 50000 --no-readme --export
 
-- Este é um **crawler focado**: restrito a `letterboxd.com` e a páginas de
-  filme. Respeita `robots.txt`, aplica *crawl-delay* e re-tenta erros
-  transitórios com *backoff*.
-- Ajuste `--delay`/`--workers` conforme a resposta do servidor. Se receber
-  muitos HTTP 429, **aumente o delay** e **reduza os workers**.
-```
+Se quiser os READMEs junto (demora mais):
+
+    python run_coletor.py --target 50000 --export
+
+Se a coleta parar no meio, é só rodar de novo o mesmo comando que ela continua
+de onde estava (o progresso fica salvo no banco).
+
+## Onde ficam os dados
+
+Tudo dentro da pasta `data/`:
+
+- `github.db` - banco SQLite com os repositórios e usuários
+- `raw_readme/` - os READMEs baixados
+- `repositories.jsonl` - os dados exportados, um repositório por linha (é o que
+  vamos usar na parte de indexação)
+- `crawler.log` - log do que aconteceu
+
+Para ver quantos itens já foram coletados:
+
+    sqlite3 data/github.db "SELECT COUNT(*) FROM repositories;"
+    sqlite3 data/github.db "SELECT COUNT(*) FROM users;"
+
+## Sobre a escala (chegar nos 50 mil)
+
+A busca do GitHub só devolve no máximo 1000 resultados por pesquisa. Para passar
+disso, a gente divide a coleta em várias pesquisas por número de estrelas
+(repos com 5000 estrelas, com 4999, com 4998... e assim por diante). Cada
+pesquisa dessas fica abaixo do limite de 1000 e, somando todas, dá pra passar
+tranquilo dos 50 mil repositórios.
+
+Os detalhes estão no relatório (`RELATORIO_PARTE1_COLETOR.md`).
+
+## Organização dos arquivos
+
+    coletor/config.py    - configurações (token, limites, estratégia de busca)
+    coletor/fetcher.py   - faz as requisições pra API e trata o limite de uso
+    coletor/storage.py   - salva no SQLite e nos arquivos
+    coletor/crawler.py   - junta tudo e controla a coleta
+    run_coletor.py       - arquivo que você executa

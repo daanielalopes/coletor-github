@@ -1,8 +1,1 @@
 requests>=2.31.0
-beautifulsoup4>=4.12.0
-# cloudscraper resolve o desafio anti-bot (Cloudflare) do Letterboxd.
-# Sem ele, o site tende a devolver HTTP 403.
-cloudscraper>=1.2.71
-# lxml acelera o parsing; é OPCIONAL. Sem ele, o coletor usa o
-# html.parser da biblioteca padrão automaticamente.
-lxml>=5.0.0
