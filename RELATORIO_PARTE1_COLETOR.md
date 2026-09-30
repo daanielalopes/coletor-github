@@ -1,10 +1,11 @@
 # Sistema de Recuperação da Informação — Parte 1: Coletor
 
-**Fonte de dados:** GitHub (via API REST oficial — `api.github.com`)
-**Documento coletado:** repositórios públicos (+ perfis dos proprietários)
+**Fontes de dados:** GitHub (`github.com`) e SourceForge (`sourceforge.net`)
+**Método de coleta:** **crawler de HTML** (parsing do DOM das páginas públicas)
+**Documento coletado:** repositórios/projetos públicos (+ perfis dos proprietários)
+**Armazenamento:** somente **arquivos** (JSON Lines) — **sem banco de dados**
 **Linguagem:** Python 3
 **Grupo:** Camila de Paula Rodrigues, Daniela da Silva Lopes, Luísa Ferreira Marques, Luisa Sapori e Thiago Lacerda Santos Barbosa
-
 
 ---
 
@@ -12,42 +13,39 @@
 
 ### 1.1 O problema
 
-O **GitHub** é a maior plataforma de hospedagem de código do mundo, com mais de
-**400 milhões de repositórios** públicos. Encontrar projetos relevantes nesse
-volume é uma necessidade real de desenvolvedores: "qual biblioteca resolve X?",
-"que projetos de machine learning em Python existem?", "quero um exemplo de app
-com tal framework". A busca nativa ajuda, mas é limitada e não permite
-experimentar diferentes modelos de recuperação.
+Repositórios de código-fonte estão espalhados por diversas plataformas —
+**GitHub** (a maior, com centenas de milhões de repositórios) e **SourceForge**
+(um dos diretórios de software livre mais antigos). Encontrar projetos
+relevantes nesse volume é uma necessidade real: *"qual biblioteca resolve X?"*,
+*"que projetos de um dado tema existem?"*, *"quero um exemplo com tal
+tecnologia"*.
 
-**Problema de RI:** dado um acervo de repositórios coletados do GitHub, permitir
-que o usuário **recupere repositórios relevantes** a partir de uma necessidade
-de informação — por **busca textual** (sobre nome, descrição e README) e por
-**navegação facetada** (por linguagem, tópico, popularidade, licença).
+**Problema de RI:** dado um acervo de repositórios/projetos coletados da Web,
+permitir **recuperar itens relevantes** a partir de uma necessidade de
+informação — por **busca textual** (nome, descrição e README) e por
+**navegação facetada** (linguagem, tópico/categoria, popularidade, licença).
 
 ### 1.2 A solução proposta
 
-Um **Sistema de RI de busca e navegacional** sobre repositórios, dividido nas
-três etapas do trabalho:
+Um **Sistema de RI de busca e navegacional** sobre repositórios/projetos de
+software, dividido nas três etapas do trabalho:
 
-| Etapa | Papel no sistema |
-|-------|------------------|
-| **1. Coletor** (esta entrega) | Adquirir o acervo de documentos (repositórios) via API. |
-| **2. Representação/Indexação** | Pré-processar o texto (tokenização, normalização, remoção de *stopwords*, *stemming*) e construir um **índice invertido** ponderado (TF-IDF/BM25) sobre nome + descrição + README. |
-| **3. Recuperação** | Atender consultas (modelo vetorial/BM25) e oferecer navegação por facetas, ordenando por relevância (podendo combinar similaridade textual com popularidade). |
+| Etapa | Papel |
+|-------|-------|
+| **1. Coletor** (esta entrega) | Adquirir o acervo, via **crawler de HTML**, de **duas fontes** (GitHub + SourceForge). |
+| **2. Representação/Indexação** | Pré-processar o texto (tokenização, normalização, *stopwords*, *stemming*) e construir um **índice invertido** ponderado (TF-IDF/BM25). |
+| **3. Recuperação** | Atender consultas (modelo vetorial/BM25) + navegação por facetas, ordenando por relevância. |
 
-**Documento (unidade de recuperação):** um repositório. Reúne um campo textual
-principal (descrição + README) e campos estruturados usados como
-facetas/sinais de relevância (linguagem, tópicos, estrelas, forks, licença).
+**Documento (unidade de recuperação):** um repositório/projeto. Reúne um campo
+textual principal (descrição + README) e campos estruturados usados como
+facetas/sinais (linguagem, tópicos/categorias, estrelas/popularidade, licença).
 
-### 1.3 Por que o GitHub é uma boa fonte
+### 1.3 Por que duas fontes
 
-- **Escala:** centenas de milhões de repositórios — folga enorme para superar
-  a meta de 50 mil documentos.
-- **API oficial e estruturada:** retorna **JSON limpo**, sem necessidade de
-  *parsing* de HTML e **sem bloqueio anti-bot**.
-- **Metadados ricos:** descrição, README (texto longo), linguagem, tópicos,
-  estrelas, forks, datas, licença e o proprietário — ideais para busca textual
-  e navegação facetada.
+Usar **GitHub e SourceForge** aumenta a **cobertura** (quesito de Qualidade) e
+demonstra que o coletor **generaliza** para páginas HTML de estruturas
+diferentes. As duas fontes convergem para o **mesmo formato de documento**
+(um campo `source` identifica a origem), o que simplifica a indexação.
 
 ---
 
@@ -55,195 +53,209 @@ facetas/sinais de relevância (linguagem, tópicos, estrelas, forks, licença).
 
 ### 2.1 Tipo do coletor
 
-Trata-se de um **coletor baseado em API** (*API harvester*), **focado** em um
-único serviço (`api.github.com`) e em um **tipo de recurso-alvo**
-(repositórios). Não é um crawler de HTML que segue *links*; ele consome a
-**Search API** de forma paginada e sistemática. De cada repositório, também
-extrai o **proprietário** (perfil de usuário/organização), armazenado de forma
-deduplicada.
+É um **coletor vertical** (*focado*): não percorre a Web inteira seguindo links
+arbitrários, mas **duas fontes específicas** e um **tipo de documento-alvo**
+(repositórios/projetos). O mecanismo é o de um **web crawler de HTML**, exatamente
+como no processo visto em aula: inicializa uma fronteira de *seeds*, baixa a
+página (`GET`), **faz o parsing do HTML**, extrai os itens/URLs de interesse,
+salva o conteúdo e avança. De cada documento também extrai o **proprietário**
+(perfil), armazenado de forma deduplicada.
 
-### 2.2 Arquitetura (visão geral)
+> **Incremento em relação à versão anterior:** antes a coleta era feita apenas
+> pela **API** do GitHub (JSON). Agora o núcleo é um **crawler de HTML** que faz
+> *parsing do DOM* — atendendo ao que o trabalho pede — e ganhou uma **segunda
+> fonte** (SourceForge). A fonte por API do GitHub foi **mantida** como
+> alternativa selecionável.
+
+### 2.2 Arquitetura
 
 ```
-   Gerador de PARTIÇÕES (por nº de estrelas)
-                │  cria a fronteira
-                ▼
-        ┌────────────────┐   partição      ┌──────────────┐
-        │   FRONTEIRA     │────────────────▶│   Coletor    │
-        │ (partitions DB) │◀────────────────│  (paginação) │
-        └────────────────┘  próxima página  └──────┬───────┘
-                ▲                                   │  JSON
-                │ checkpoint                        ▼
-        ┌───────┴────────┐              ┌────────────────────┐
-        │    Storage     │◀─────────────│  Fetcher (API)     │
-        │  SQLite+README │  repos+users └────────────────────┘
-        └────────────────┘
+        Gerador de PARTIÇÕES (seeds)                 ┌─────────────────┐
+   GitHub: stars:1..5000  | SourceForge: facetas     │  Fontes (Source)│
+                │ inicializa a fronteira             │  github_html    │
+                ▼                                     │  sourceforge    │
+        ┌────────────────┐   próxima partição         │  github_api     │
+        │   FRONTEIRA     │──────────────────────────▶│ (listagem +     │
+        │ (state/ em      │◀──────────────────────────│  parsing DOM +  │
+        │  arquivos)      │   próxima página / done    │  detalhe)       │
+        └───────┬────────┘                            └────────┬────────┘
+                │ checkpoint (arquivos)                        │ HTML/JSON
+                ▼                                              ▼
+        ┌────────────────────┐  documentos+perfis   ┌────────────────────┐
+        │  STORAGE (ARQUIVOS) │◀─────────────────────│  FETCHER            │
+        │ JSONL + raw + state │                      │ robots.txt+delay+  │
+        └────────────────────┘                       │ retry (HTML/JSON)  │
+                                                      └────────────────────┘
 ```
 
-- **Fetcher** (`fetcher.py`): fala com a API (autenticação, *rate limit*,
-  *retry*).
-- **Crawler** (`crawler.py`): gera as partições, pagina a busca, normaliza o
-  JSON e enriquece com README e proprietário.
-- **Storage** (`storage.py`): persiste repositórios, usuários e o estado das
-  partições (SQLite) + READMEs brutos em disco.
+- **Fetcher** (`fetcher.py`): baixa páginas (`get_html`) ou JSON (`get_json`);
+  consulta `robots.txt`, aplica *delay*+*jitter* e *retry* com *backoff*.
+- **Sources** (`sources/`): cada fonte sabe gerar suas partições, montar a URL
+  da listagem, **fazer o parsing do HTML** (lista de itens e página de detalhe)
+  e o proprietário. Interface comum em `base.py`.
+- **Crawler** (`crawler.py`): motor genérico que orquestra as fontes, pagina as
+  listagens, deduplica e salva.
+- **Storage** (`storage.py`): persiste **em arquivos** (sem BD) e mantém o
+  estado (fronteira/concluídas/vistos) para **retomar**.
 
-### 2.3 Propriedades e políticas
+### 2.3 Propriedades de coleta (Quality / Freshness / Volume)
 
-#### Política de seleção (o que coletar)
-- Somente a API `api.github.com`.
-- Documento-alvo: repositórios com **pelo menos 1 estrela** (`stars:>=1`) —
-  decisão de projeto para focar em conteúdo minimamente relevante e reduzir
-  ruído/spam.
-- Deduplicação por **`id` numérico** do repositório (chave primária) e por
-  `login` do usuário.
+Seguindo Baeza-Yates & Ribeiro-Neto (Modern IR):
 
-#### Política de autenticação e polidez (rate limit)
-- **Token pessoal** (Bearer) — eleva o limite de **60 → 5.000 requisições/hora**.
-  O token é lido de variável de ambiente/`.env` e **nunca** vai para o código.
-- **User-Agent** obrigatório e versão da API fixada (boas práticas do GitHub).
-- **Respeito ativo ao *rate limit*:** o coletor lê os cabeçalhos
-  `X-RateLimit-Remaining`/`X-RateLimit-Reset` e **dorme** até a janela reabrir
-  quando a cota se esgota; também honra `Retry-After` (limite secundário/abuso).
-- **Delay + jitter** entre requisições e **um único worker** — a Search API não
-  recomenda concorrência alta.
+- **Qualidade — Cobertura/Acurácia:** foco em repositórios/projetos (documentos
+  úteis para busca), duas fontes para ampliar cobertura, e **seleção** que
+  descarta duplicatas e itens irrelevantes.
+- **Volume — Eficiência/Escalabilidade:** particionamento do espaço de busca
+  (Seção 3) para escalar além de 50 mil, com *checkpoint* para execuções longas.
+- **Atualização (Freshness):** *snapshot* — coleta **única** (cada URL é visitada
+  uma vez). Adequado ao escopo (o acervo é uma "fotografia" para indexar).
 
-#### Política de re-visita
-- Coleta **única** (*snapshot*). Partições concluídas vão para
-  `done_partitions` e **não** são reprocessadas.
+### 2.4 Políticas
+
+#### Política de seleção (o que coletar / o que seguir)
+- **Documentos-alvo:** repositórios (GitHub) e projetos (SourceForge).
+- **Seleção de links:** por **estrutura do HTML** — no GitHub, links de resultado
+  no formato `/owner/repo` (rotas reservadas como `/search`, `/settings` são
+  filtradas); no SourceForge, links `/projects/<slug>/`.
+- **Seleção de documentos:** **deduplicação** por identificador
+  (`full_name = owner/repo` no GitHub; `sourceforge/<slug>` no SourceForge) e por
+  `login` do proprietário; itens sem página válida (404) são descartados.
+
+#### Política de boas maneiras (polidez)
+- **Identificação:** `User-Agent` em toda requisição.
+- **robots.txt:** lido e **respeitado por domínio** (`urllib.robotparser`).
+- **Controle de banda:** *delay* base + *jitter* entre requisições e **um único
+  worker** sequencial (evita a proteção anti-bot / HTTP 429).
+
+#### Política de re-visita (freshness)
+- **Coleta única (snapshot).** Partições concluídas vão para
+  `done_partitions.txt` e **não** são reprocessadas.
 
 #### Tolerância a falhas
-- **Timeout** por requisição.
-- **Retry com *backoff* exponencial + jitter** para erros transitórios
-  (429, 500, 502, 503, 504) e para 403 de *rate limit*.
-- Erros definitivos (404 — ex.: repositório sem README) **não** re-tentam.
-- Falhas são **registradas** (tabela `failures`) para auditoria.
+- **Timeout** por requisição; **retry com backoff exponencial + jitter** para
+  erros transitórios (429, 500, 502, 503, 504); honra ao `Retry-After`.
+- Erros definitivos (404) **não** re-tentam. Falhas são **registradas** em
+  `state/failures.jsonl` (auditoria).
 
-#### Critério de parada
+#### Critério de parada (limite offline)
 Encerra quando **qualquer** condição ocorre:
-1. **Meta de documentos atingida** (padrão: **50.000** repositórios) — critério
-   principal, alinhado ao quesito Escala;
-2. **Partições esgotadas** (todo o espaço de busca foi percorrido);
-3. **Interrupção manual** — o estado é salvo e a coleta pode ser retomada.
+1. **Meta de documentos atingida** (padrão **50.000**) — critério principal;
+2. **Fronteira esgotada** (todas as partições processadas);
+3. **Interrupção manual** — o estado é salvo e a coleta é **retomável**.
 
 #### Checkpointing / retomada
-O progresso (página atual de cada partição, partições concluídas, repositórios
-já salvos) é persistido periodicamente em SQLite. Ao reiniciar, o coletor
-**retoma de onde parou**, sem recomeçar nem recoletar.
+A cada N itens (`checkpoint_every`) e ao concluir cada página, o estado é
+gravado em `data/state/` (partição/página atual, concluídas, vistos). Ao
+reiniciar, o coletor **retoma de onde parou**, sem recoletar.
 
-### 2.4 Estratégia de escala — o ponto central (superar o limite de 1.000)
+### 2.5 Armazenamento sem banco de dados
 
-A Search API do GitHub devolve **no máximo 1.000 resultados por consulta**
-(10 páginas de 100). Para coletar **muito mais** que isso, aplicamos
-**particionamento do espaço de busca**: dividimos a coleta em milhares de
-consultas **disjuntas**, cada uma com ≤ 1.000 resultados, e somamos os itens.
+**Restrição do trabalho:** proibido usar banco de dados (SQL ou NoSQL). Assim,
+tudo é gravado em **arquivos**:
 
-Partição adotada: por **número exato de estrelas**. Para cada valor `S`, a
-consulta é `stars:S`. Como cada valor de estrela isola um subconjunto pequeno
-de repositórios, praticamente toda partição cabe no limite de 1.000 — e a soma
-de milhares de partições cobre **muito além de 50 mil** repositórios. Os
-parâmetros `--star-min`/`--star-max` controlam a faixa.
+- `repositories.jsonl` — o acervo, **1 documento por linha** (JSON, *append-only*);
+- `users.jsonl` — proprietários deduplicados;
+- `raw_readme/…` — texto rico bruto (README/descrição) por documento;
+- `state/…` — conjuntos `seen_*` (dedup/retomada), fronteira, concluídas, falhas.
 
-> Essa é a principal **decisão de projeto** do coletor: transforma um limite
-> rígido da API (1.000/consulta) em uma coleta de escala arbitrária.
+**Justificativa:** JSON Lines escreve em O(1), não carrega tudo em memória, é
+*streamável* para o indexador (Parte 2) e dispensa servidor/índice de banco. Os
+conjuntos `seen_*` são carregados dos arquivos no início, garantindo
+deduplicação e retomada **sem** qualquer SGBD.
 
-### 2.5 Dados extraídos por documento
+### 2.6 Dados extraídos por documento
 
-`id`, `full_name` (owner/repo), `name`, `owner_login`, `description`,
-**`readme`** (texto rico), `language`, `topics`, `stars`, `forks`, `watchers`,
-`open_issues`, `size_kb`, `license_name`, `default_branch`, `homepage`,
-`html_url`, `is_fork`, `created_at`, `updated_at`, `pushed_at`.
+`full_name`, `source`, `name`, `owner_login`, `description`, **`readme`**
+(texto rico), `language`, `topics`/categorias, `stars`/popularidade, `forks`,
+`watchers`/downloads, `open_issues`, `license_name`, `default_branch`,
+`homepage`, `html_url`, `is_fork` e datas (quando disponíveis no HTML).
+Cada **proprietário**: `login`, `type`, `html_url`, `avatar_url`.
 
-Além disso, cada **proprietário** é salvo (deduplicado): `id`, `login`, `type`
-(User/Organization), `html_url`, `avatar_url`. O README bruto é gravado em
-disco para permitir **reprocessamento** nas fases seguintes sem recoletar.
-
-### 2.6 Justificativa das decisões de projeto
+### 2.7 Justificativa das principais decisões
 
 | Decisão | Justificativa |
 |--------|---------------|
-| **API oficial** (não *scraping*) | JSON estruturado, estável e sem bloqueio anti-bot; coleta confiável e legal. |
-| **Repositórios** como documento | Texto rico (descrição + README) para busca + facetas (linguagem, tópico) para navegação. |
-| **Particionar por estrelas** | Contorna o teto de 1.000 resultados/consulta da Search API, viabilizando 50k+. |
-| **Token via env/.env** | Segurança: segredo fora do código versionado; eleva a cota para 5.000/h. |
-| **Respeitar `X-RateLimit`** | Evita banimento temporário e é polidez com o serviço. |
-| **SQLite + checkpoint** | Coletas longas (horas) precisam ser retomáveis; banco embarcado simples. |
-| **Salvar README bruto** | Desacopla coleta de indexação; permite reindexar sem recoletar. |
-| **Deduplicar usuários** | Entrega também "perfis" (citados no enunciado) sem custo extra de requisição. |
+| **Crawler de HTML** (parsing do DOM) | Requisito do trabalho; lê as mesmas páginas de um usuário, sem depender de API. |
+| **Duas fontes** (GitHub + SourceForge) | Amplia cobertura e mostra generalização do coletor para HTML diferente. |
+| **Arquivos (JSONL), sem BD** | Restrição do trabalho; simples, *append-only*, streamável e retomável. |
+| **Particionar por estrelas / facetas** | Contorna o teto de resultados navegáveis por consulta → viabiliza 50k+. |
+| **robots.txt + delay + 1 worker** | Boas maneiras: polidez, respeito ao domínio, evita bloqueio anti-bot. |
+| **Checkpoint em arquivos** | Coletas longas precisam ser retomáveis sem SGBD. |
+| **Salvar README bruto** | Desacopla coleta de indexação (reindexar sem recoletar). |
+| **Manter fonte por API** | Alternativa/segurança, selecionável por `--sources`. |
 
 ---
 
 ## 📈 3. Escala (30%)
 
-### 3.1 Meta e viabilidade
+### 3.1 Estratégia — superar o limite de resultados por consulta
 
-A pontuação máxima exige **mais de 50 mil documentos**. O coletor usa
-`target_pages = 50000` por padrão, e o particionamento por estrelas dá acesso a
-**ordens de grandeza acima disso** (o GitHub tem centenas de milhões de repos).
+Tanto a busca do GitHub quanto o diretório do SourceForge limitam quantos
+resultados são navegáveis por consulta. A solução é **particionar** o espaço de
+busca em milhares de consultas **disjuntas** (cada uma pequena) e **somar**:
 
-### 3.2 Estimativa de tempo (com token)
+- **GitHub** — por número **exato de estrelas**: `stars:1`, `stars:2`, …,
+  `stars:5000` (5.000 partições disjuntas). Cada valor isola um subconjunto
+  pequeno; a soma cobre muito além de 50 mil repositórios.
+- **SourceForge** — por **faceta** do diretório: sistemas operacionais
+  (`os:windows`, `os:linux`, …) e categorias (`development`, `internet`,
+  `games`, …), cada uma paginada. Dezenas de facetas × muitas páginas.
 
-Com token (5.000 req/h) e ~100 repos por página de busca:
+> Essa é a principal **decisão de projeto de escala**: transforma um limite
+> rígido de navegação em uma coleta de tamanho arbitrário.
 
-- **Sem baixar README:** cada requisição de busca traz 100 repos. 50.000 repos
-  ≈ 500 requisições de busca → **poucos minutos** (respeitando o *rate limit*).
-- **Baixando README:** cada repo custa +1 requisição (endpoint `/readme`).
-  50.000 READMEs ≈ 50.000 requisições → ~10 horas de relógio por causa do teto
-  de 5.000/h (o coletor dorme e retoma automaticamente).
+### 3.2 Viabilidade e tempo
 
-> Recomendação: para bater a meta rapidamente, rode com `--no-readme` primeiro
-> (garante os 50k) e, se quiser o texto rico, rode depois com README ligado —
-> a coleta é retomável.
+Com ~100 itens por página de listagem, alcançar 50.000 documentos exige a ordem
+de **centenas de páginas de listagem** + a página de detalhe de cada documento.
+Respeitando o *delay* de polidez (padrão ~2–3,5s/requisição, 1 worker), a coleta
+completa leva horas — por isso é **retomável** e pode rodar por partes. Para
+acelerar testes, use `--no-readme` (não baixa o texto rico) e/ou `--target` menor.
 
 ### 3.3 Como comprovar a escala coletada
 
 ```bash
-sqlite3 data/github.db "SELECT COUNT(*) FROM repositories;"
-sqlite3 data/github.db "SELECT COUNT(*) FROM users;"
+wc -l data/repositories.jsonl      # nº de documentos coletados
+wc -l data/users.jsonl             # nº de perfis (proprietários)
 ```
 
-O log (`crawler.log`) reporta o progresso continuamente ("Progresso: N
-repositorios").
+O log (`crawler.log`) reporta o progresso ("Progresso: N documentos").
 
 ---
 
 ## ▶️ 4. Como executar
 
 ```bash
-# 1) Instalar dependências
 pip install -r requirements.txt
 
-# 2) Definir o token (grátis) — gere em https://github.com/settings/tokens
-export GITHUB_TOKEN=ghp_xxx            # Linux/Mac
-# $env:GITHUB_TOKEN="ghp_xxx"          # Windows PowerShell
-# ou copie .env.example para .env e coloque o token lá
-
-# 3) Teste rápido (200 repositórios)
+# Teste rápido (200 documentos, duas fontes de crawler)
 python run_coletor.py --target 200
 
-# 4) Coleta completa (>50 mil), sem README (rápida), exportando JSONL
-python run_coletor.py --target 50000 --no-readme --export
+# Coleta completa (>50 mil)
+python run_coletor.py --target 50000 --export
 
-# 5) Retomar após interrupção: basta rodar de novo
+# Somente uma fonte / incluindo a API do GitHub
+python run_coletor.py --sources github_html
+python run_coletor.py --sources sourceforge
+python run_coletor.py --sources github_html sourceforge github_api   # API requer GITHUB_TOKEN
+
+# Retomar após interrupção: rodar o mesmo comando
 python run_coletor.py --target 50000
-
-# 6) Exportar o que já foi coletado (fase de Indexação)
-python run_coletor.py --export-only
 ```
 
-**Saídas geradas** (em `data/`):
-- `github.db` — SQLite com repositórios, usuários e estado do coletor;
-- `raw_readme/` — READMEs brutos (reprocessamento);
-- `repositories.jsonl` — um documento por linha (entrada da Parte 2);
-- `crawler.log` — log de execução.
+**Saídas** (em `data/`): `repositories.jsonl`, `users.jsonl`, `raw_readme/`,
+`state/` (estado do coletor) e `crawler.log`.
+
+**Testes dos parsers (offline):** `python -m pytest tests/ -q`
 
 ---
 
 ## 🔭 5. Limitações e trabalhos futuros
 
-- A Search API limita 1.000 resultados/consulta; contornamos com
-  particionamento por estrelas (poderíamos particionar também por data ou
-  linguagem para granularidade ainda maior).
-- Baixar READMEs multiplica as requisições; por isso é opcional (`--no-readme`).
-- A coleta é um *snapshot* (sem atualização incremental) — adequado ao escopo.
-- Na Parte 2, o `repositories.jsonl` será a entrada do indexador (índice
-  invertido + ponderação TF-IDF/BM25).
+- O HTML dos sites muda com o tempo; os parsers usam **seletores com fallback**,
+  mas podem exigir ajuste — os testes com *fixtures* ajudam a detectar quebras.
+- Coleta é *snapshot* (sem atualização incremental) — adequado ao escopo.
+- Poderíamos paralelizar por domínio (fila de Mercator) para ganhar eficiência,
+  mantendo o *delay* por host.
+- Na Parte 2, `repositories.jsonl` será a entrada do indexador (índice invertido
+  + ponderação TF-IDF/BM25).

@@ -1,11 +1,8 @@
-# Segredos (NUNCA versionar o token!)
+# Token opcional (apenas para a fonte github_api)
 .env
 
-# Dados coletados
+# Dados coletados (armazenamento em arquivos)
 data/
-*.db
-*.db-wal
-*.db-shm
 *.jsonl
 
 # Logs

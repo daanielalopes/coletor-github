@@ -1,21 +1,25 @@
 """
-Fetcher HTTP: camada que conversa com a API REST do GitHub.
+Fetcher HTTP: camada de rede do coletor.
 
-Concentra as POLÍTICAS de rede do coletor:
-  - Autenticação: token pessoal (Bearer), User-Agent obrigatório, versão da API.
-  - Polidez / rate limit: respeita os cabeçalhos X-RateLimit-Remaining e
-    X-RateLimit-Reset (dorme até a janela reabrir) e o "secondary rate limit".
+Concentra as POLÍTICAS de rede/boas maneiras (conforme visto em aula):
+  - Identidade: User-Agent (identificar-se como robô/cliente) e Accept-Language.
+  - Boas maneiras: consulta e RESPEITA o robots.txt de cada host (política de
+    acesso dos domínios), aplica delay + jitter por requisição (controle de
+    banda) e usa um único worker sequencial.
   - Tolerância a falhas: timeout, retry com backoff exponencial em erros
-    transitórios (429/5xx) e honra ao cabeçalho Retry-After.
+    transitórios (429/5xx) e honra ao cabeçalho Retry-After (anti-bot/limite).
 
-Diferença em relação a um crawler de HTML: aqui consumimos JSON estruturado
-de uma API oficial — não há parsing de páginas nem risco de bloqueio anti-bot.
+Dois modos de obtenção:
+  - get_html(url)  -> texto HTML (usado pelos CRAWLERS: github_html, sourceforge)
+  - get_json(url)  -> JSON     (usado pela fonte por API: github_api)
 """
 
 import logging
 import random
 import time
 from typing import Optional, Tuple
+from urllib.parse import urlparse
+from urllib.robotparser import RobotFileParser
 
 import requests
 
@@ -26,146 +30,115 @@ class Fetcher:
     def __init__(self, config):
         self.cfg = config
         self.session = requests.Session()
-        headers = {
+        self.session.headers.update({
             "User-Agent": config.user_agent,
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": config.api_version,
-        }
-        if config.token:
-            headers["Authorization"] = f"Bearer {config.token}"
-            logger.info("Autenticado com token (limite ~5000 req/h).")
-        else:
-            logger.warning(
-                "SEM token: limite de apenas 60 req/h. Defina GITHUB_TOKEN "
-                "(variavel de ambiente ou arquivo .env) para 5000 req/h."
-            )
-        self.session.headers.update(headers)
+            "Accept-Language": config.accept_language,
+            "Connection": "keep-alive",
+        })
         self._last_request = 0.0
+        # Cache de robots.txt por host (política de boas maneiras).
+        self._robots: dict = {}
 
-    # ---------------- Polidez ----------------
+    # ---------------- Boas maneiras: robots.txt ----------------
+    def _robots_allows(self, url: str) -> bool:
+        if not self.cfg.respect_robots:
+            return True
+        parsed = urlparse(url)
+        host = f"{parsed.scheme}://{parsed.netloc}"
+        rp = self._robots.get(host)
+        if rp is None:
+            rp = RobotFileParser()
+            rp.set_url(f"{host}/robots.txt")
+            try:
+                rp.read()
+            except Exception:
+                # Se não conseguimos ler o robots.txt, seguimos (fail-open),
+                # mas mantendo o resto das boas maneiras (delay, UA).
+                rp = None
+            self._robots[host] = rp
+        if rp is None:
+            return True
+        return rp.can_fetch(self.cfg.user_agent, url)
+
+    # ---------------- Polidez (delay + jitter) ----------------
     def _polite_wait(self) -> None:
         delay = self.cfg.request_delay + random.uniform(
-            0, self.cfg.request_delay_jitter
-        )
+            0, self.cfg.request_delay_jitter)
         elapsed = time.monotonic() - self._last_request
         if elapsed < delay:
             time.sleep(delay - elapsed)
         self._last_request = time.monotonic()
 
-    # ---------------- Rate limit ----------------
-    def _respect_rate_limit(self, resp: requests.Response) -> None:
-        """Se estamos no fim da cota, dorme até a janela reabrir."""
-        remaining = resp.headers.get("X-RateLimit-Remaining")
-        reset = resp.headers.get("X-RateLimit-Reset")
-        if remaining is not None and reset is not None:
-            try:
-                if int(remaining) <= 1:
-                    wait = max(0.0, float(reset) - time.time()) + 1.0
-                    if wait > 0:
-                        logger.warning(
-                            "Rate limit atingido. Aguardando %.0fs ate reset.",
-                            wait,
-                        )
-                        time.sleep(wait)
-            except ValueError:
-                pass
+    # ---------------- núcleo do GET com retry ----------------
+    def _get(self, url: str, params: Optional[dict], headers: Optional[dict]
+             ) -> Optional[requests.Response]:
+        if not self._robots_allows(url):
+            logger.info("Bloqueado por robots.txt: %s", url)
+            return None
 
-    # ---------------- GET JSON ----------------
-    def get_json(self, url: str, params: Optional[dict] = None
-                 ) -> Tuple[Optional[dict], Optional[requests.Response]]:
-        """
-        Faz GET e devolve (json, response). Em falha definitiva devolve
-        (None, response|None). Trata rate limit e erros transitórios.
-        """
         attempt = 0
         while attempt <= self.cfg.max_retries:
             self._polite_wait()
             try:
                 resp = self.session.get(
-                    url, params=params, timeout=self.cfg.request_timeout
-                )
+                    url, params=params, headers=headers,
+                    timeout=self.cfg.request_timeout)
             except requests.RequestException as e:
                 wait = self._backoff(attempt)
-                logger.warning(
-                    "Erro de rede em %s (tentativa %d): %s. Aguardando %.1fs",
-                    url, attempt + 1, e, wait,
-                )
+                logger.warning("Erro de rede em %s (tent. %d): %s. Aguardando %.1fs",
+                               url, attempt + 1, e, wait)
                 time.sleep(wait)
                 attempt += 1
                 continue
 
-            self._respect_rate_limit(resp)
-
             if resp.status_code == 200:
-                try:
-                    return resp.json(), resp
-                except ValueError:
-                    logger.error("Resposta 200 sem JSON valido em %s", url)
-                    return None, resp
+                return resp
 
-            # 403 pode ser rate limit primário/secundário (não é bloqueio
-            # anti-bot como no scraping de HTML).
-            if resp.status_code in (403, 429):
+            if resp.status_code == 429:
                 retry_after = resp.headers.get("Retry-After")
-                remaining = resp.headers.get("X-RateLimit-Remaining")
-                if retry_after and retry_after.isdigit():
-                    wait = float(retry_after)
-                elif remaining == "0":
-                    reset = resp.headers.get("X-RateLimit-Reset")
-                    wait = max(1.0, float(reset) - time.time()) + 1.0 if reset \
-                        else self._backoff(attempt)
-                else:
-                    wait = self._backoff(attempt)
-                logger.warning(
-                    "HTTP %d em %s (rate/abuse limit). Aguardando %.0fs.",
-                    resp.status_code, url, wait,
-                )
+                wait = float(retry_after) if retry_after and retry_after.isdigit() \
+                    else self._backoff(attempt)
+                logger.warning("HTTP 429 em %s. Aguardando %.0fs.", url, wait)
                 time.sleep(wait)
                 attempt += 1
                 continue
 
             if resp.status_code in self.cfg.retry_status_codes:
                 wait = self._backoff(attempt)
-                logger.warning(
-                    "HTTP %d em %s (tentativa %d). Aguardando %.1fs",
-                    resp.status_code, url, attempt + 1, wait,
-                )
+                logger.warning("HTTP %d em %s (tent. %d). Aguardando %.1fs",
+                               resp.status_code, url, attempt + 1, wait)
                 time.sleep(wait)
                 attempt += 1
                 continue
 
-            # 404 e outros definitivos.
+            # 403/404 e demais definitivos.
             logger.info("HTTP %d (definitivo) em %s", resp.status_code, url)
-            return None, resp
+            return None
 
         logger.error("Esgotadas as tentativas para %s", url)
-        return None, None
-
-    # ---------------- GET texto (README bruto) ----------------
-    def get_text(self, url: str, accept: str = "application/vnd.github.raw+json"
-                 ) -> Optional[str]:
-        attempt = 0
-        while attempt <= self.cfg.max_retries:
-            self._polite_wait()
-            try:
-                resp = self.session.get(
-                    url, timeout=self.cfg.request_timeout,
-                    headers={"Accept": accept},
-                )
-            except requests.RequestException as e:
-                time.sleep(self._backoff(attempt))
-                attempt += 1
-                continue
-            self._respect_rate_limit(resp)
-            if resp.status_code == 200:
-                return resp.text
-            if resp.status_code in (403, 429) or \
-                    resp.status_code in self.cfg.retry_status_codes:
-                time.sleep(self._backoff(attempt))
-                attempt += 1
-                continue
-            return None  # 404: repo sem README
         return None
+
+    # ---------------- GET HTML (crawlers) ----------------
+    def get_html(self, url: str, params: Optional[dict] = None) -> Optional[str]:
+        resp = self._get(
+            url, params,
+            headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
+        return resp.text if resp is not None else None
+
+    # ---------------- GET JSON (fonte por API) ----------------
+    def get_json(self, url: str, params: Optional[dict] = None,
+                 extra_headers: Optional[dict] = None
+                 ) -> Tuple[Optional[dict], Optional[requests.Response]]:
+        headers = {"Accept": "application/json"}
+        if extra_headers:
+            headers.update(extra_headers)
+        resp = self._get(url, params, headers=headers)
+        if resp is None:
+            return None, None
+        try:
+            return resp.json(), resp
+        except ValueError:
+            return None, resp
 
     def _backoff(self, attempt: int) -> float:
         base = self.cfg.backoff_base * (self.cfg.backoff_factor ** attempt)

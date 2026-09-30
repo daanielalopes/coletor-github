@@ -1,3 +1,7 @@
-"""Sistema de Recuperação da Informação - Parte 1: Coletor (Letterboxd)."""
+"""Sistema de Recuperacao da Informacao - Parte 1: Coletor.
 
-__version__ = "1.0.0"
+Crawlers de HTML (GitHub + SourceForge) + coletor por API do GitHub.
+Armazenamento somente em arquivos (sem banco de dados).
+"""
+
+__version__ = "2.0.0"

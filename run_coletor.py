@@ -2,28 +2,29 @@
 """
 Ponto de entrada do Coletor (Parte 1 do Sistema de RI).
 
-Fonte de dados: API oficial do GitHub. Documento: repositórios.
+Fontes de dados (duas): CRAWLER de HTML de github.com e de sourceforge.net.
+Também há uma fonte por API do GitHub (opcional). Os dados são extraídos do
+HTML das páginas (parsing do DOM) nos crawlers. Documento: repositório/projeto
+(+ proprietário deduplicado).
 
-Antes de rodar, defina o token da API do GitHub (grátis):
-    - Linux/Mac:   export GITHUB_TOKEN=ghp_xxx
-    - Windows PS:  $env:GITHUB_TOKEN="ghp_xxx"
-    - ou crie um arquivo .env com a linha: GITHUB_TOKEN=ghp_xxx
+Armazenamento: SOMENTE ARQUIVOS (JSONL). NÃO há banco de dados.
 
 Exemplos de uso:
-    # Teste rápido: coletar 200 repositórios
+    # Teste rápido: 200 documentos das duas fontes de crawler (padrão)
     python run_coletor.py --target 200
 
-    # Coleta completa (>50 mil) + exportar JSONL ao final
+    # Coleta completa (>50 mil), exportar ao final
     python run_coletor.py --target 50000 --export
 
-    # Retomar uma coleta interrompida (basta rodar de novo)
+    # Somente uma fonte
+    python run_coletor.py --sources github_html
+    python run_coletor.py --sources sourceforge
+
+    # Incluir também o coletor por API do GitHub (precisa de GITHUB_TOKEN)
+    python run_coletor.py --sources github_html sourceforge github_api
+
+    # Retomar coleta interrompida: rode o mesmo comando de novo
     python run_coletor.py --target 50000
-
-    # Coleta mais rápida sem baixar READMEs (menos requisições)
-    python run_coletor.py --target 50000 --no-readme
-
-    # Só exportar o que já foi coletado
-    python run_coletor.py --export-only
 """
 
 import argparse
@@ -32,20 +33,23 @@ import sys
 
 from coletor.config import CrawlerConfig
 from coletor.crawler import Crawler
+from coletor.sources import SOURCES
 
 
 def build_config(args) -> CrawlerConfig:
     cfg = CrawlerConfig()
+    if args.sources:
+        cfg.sources = args.sources
     if args.target is not None:
         cfg.target_pages = args.target
     if args.delay is not None:
         cfg.request_delay = args.delay
     if args.output is not None:
         cfg.output_dir = args.output
-    if args.token is not None:
-        cfg.token = args.token
     if args.no_readme:
         cfg.fetch_readme = False
+    if args.no_robots:
+        cfg.respect_robots = False
     if args.star_max is not None:
         cfg.star_max = args.star_max
     if args.star_min is not None:
@@ -65,25 +69,26 @@ def setup_logging(cfg: CrawlerConfig) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Coletor GitHub (RI - Parte 1)")
-    ap.add_argument("--target", type=int, help="Meta de repositórios a coletar")
-    ap.add_argument("--delay", type=float,
-                    help="Delay base entre requisições (s)")
-    ap.add_argument("--output", type=str, help="Diretório de saída")
-    ap.add_argument("--token", type=str,
-                    help="Token da API do GitHub (prefira a env GITHUB_TOKEN)")
+    ap = argparse.ArgumentParser(
+        description="Coletor de RI (Parte 1) - crawlers HTML (GitHub + SourceForge)")
+    ap.add_argument("--sources", nargs="+", choices=sorted(SOURCES),
+                    help="Fontes a coletar (padrao: github_html sourceforge)")
+    ap.add_argument("--target", type=int, help="Meta de documentos a coletar")
+    ap.add_argument("--delay", type=float, help="Delay base entre requisicoes (s)")
+    ap.add_argument("--output", type=str, help="Diretorio de saida")
     ap.add_argument("--no-readme", action="store_true",
-                    help="Não baixar READMEs (coleta mais rápida)")
+                    help="Nao extrair texto rico/README (coleta mais rapida)")
+    ap.add_argument("--no-robots", action="store_true",
+                    help="Nao consultar robots.txt (nao recomendado)")
     ap.add_argument("--star-max", type=int,
-                    help="Estrelas máximas para o particionamento (padrão 5000)")
+                    help="Estrelas maximas do particionamento GitHub (padrao 5000)")
     ap.add_argument("--star-min", type=int,
-                    help="Estrelas mínimas para o particionamento (padrão 1)")
+                    help="Estrelas minimas do particionamento GitHub (padrao 1)")
     ap.add_argument("--export", action="store_true",
-                    help="Ao final, exportar repositories.jsonl")
+                    help="Ao final, confirmar o caminho do JSONL do acervo")
     ap.add_argument("--export-only", action="store_true",
-                    help="Apenas exportar o JSONL do banco existente e sair")
-    ap.add_argument("--debug", action="store_true",
-                    help="Log detalhado")
+                    help="Apenas informar o caminho do acervo e sair")
+    ap.add_argument("--debug", action="store_true", help="Log detalhado")
     args = ap.parse_args()
 
     cfg = build_config(args)
@@ -91,12 +96,9 @@ def main() -> None:
         cfg.log_level = "DEBUG"
     setup_logging(cfg)
 
-    if not cfg.token:
-        logging.getLogger(__name__).warning(
-            "Nenhum GITHUB_TOKEN definido: o limite de 60 req/h torna "
-            "inviavel coletar 50 mil. Gere um token em "
-            "https://github.com/settings/tokens e defina GITHUB_TOKEN."
-        )
+    logging.getLogger(__name__).info(
+        "Coletor iniciado. Fontes: %s. Armazenamento: arquivos JSONL (sem BD).",
+        cfg.sources)
 
     crawler = Crawler(cfg)
     try:
