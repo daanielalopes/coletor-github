@@ -1,111 +1,115 @@
 #!/usr/bin/env python3
 """
-Ponto de entrada do Coletor (Parte 1 do Sistema de RI).
+Ponto de entrada do coletor (Parte 1 do sistema de RI).
 
-Fonte de dados: API oficial do GitHub. Documento: repositórios.
+Coletor web clássico: baixa o HTML das páginas do GitHub e do SourceForge e
+segue os links. Não usa nenhuma API.
 
-Antes de rodar, defina o token da API do GitHub (grátis):
-    - Linux/Mac:   export GITHUB_TOKEN=ghp_xxx
-    - Windows PS:  $env:GITHUB_TOKEN="ghp_xxx"
-    - ou crie um arquivo .env com a linha: GITHUB_TOKEN=ghp_xxx
+Exemplos:
+    # Teste rápido: 100 páginas de projeto por site
+    python run_coletor.py --target 100
 
-Exemplos de uso:
-    # Teste rápido: coletar 200 repositórios
-    python run_coletor.py --target 200
+    # Coleta completa: 25 mil páginas de projeto por site
+    python run_coletor.py --target 25000
 
-    # Coleta completa (>50 mil) + exportar JSONL ao final
-    python run_coletor.py --target 50000 --export
+    # Retomar uma coleta interrompida: basta rodar o mesmo comando de novo
 
-    # Retomar uma coleta interrompida (basta rodar de novo)
-    python run_coletor.py --target 50000
+    # Só um dos sites, com profundidade máxima 3
+    python run_coletor.py --target 1000 --sites github --max-depth 3
 
-    # Coleta mais rápida sem baixar READMEs (menos requisições)
-    python run_coletor.py --target 50000 --no-readme
-
-    # Só exportar o que já foi coletado
+    # Estatísticas e exportação sem coletar
+    python run_coletor.py --stats
     python run_coletor.py --export-only
 """
 
 import argparse
 import logging
+import os
 import sys
 
 from coletor.config import CrawlerConfig
 from coletor.crawler import Crawler
+from coletor.stats import report
 
 
 def build_config(args) -> CrawlerConfig:
     cfg = CrawlerConfig()
     if args.target is not None:
-        cfg.target_pages = args.target
+        cfg.target_per_site = args.target
+    if args.max_depth is not None:
+        cfg.max_depth = args.max_depth
     if args.delay is not None:
-        cfg.request_delay = args.delay
+        cfg.min_delay = args.delay
     if args.output is not None:
         cfg.output_dir = args.output
-    if args.token is not None:
-        cfg.token = args.token
-    if args.no_readme:
-        cfg.fetch_readme = False
-    if args.star_max is not None:
-        cfg.star_max = args.star_max
-    if args.star_min is not None:
-        cfg.star_min = args.star_min
+    if args.sites:
+        cfg.sites = tuple(args.sites)
+    if args.block_size is not None:
+        cfg.block_size = args.block_size
+    if args.debug:
+        cfg.log_level = "DEBUG"
     return cfg
 
 
 def setup_logging(cfg: CrawlerConfig) -> None:
+    # O console do Windows usa cp1252 por padrão; nomes de projetos podem ter
+    # qualquer caractere.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except AttributeError:
+            pass
+    os.makedirs(cfg.output_dir, exist_ok=True)
     logging.basicConfig(
         level=getattr(logging, cfg.log_level, logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        format="%(asctime)s %(levelname)s [%(threadName)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler(cfg.log_file, encoding="utf-8"),
+            logging.FileHandler(os.path.join(cfg.output_dir, cfg.log_filename),
+                                encoding="utf-8"),
         ],
     )
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Coletor GitHub (RI - Parte 1)")
-    ap.add_argument("--target", type=int, help="Meta de repositórios a coletar")
+    ap = argparse.ArgumentParser(
+        description="Coletor web de projetos de software livre (GitHub e SourceForge)")
+    ap.add_argument("--target", type=int,
+                    help="paginas de projeto por site (padrao 25000)")
+    ap.add_argument("--max-depth", type=int,
+                    help="profundidade maxima a partir das seeds (padrao: sem limite)")
     ap.add_argument("--delay", type=float,
-                    help="Delay base entre requisições (s)")
-    ap.add_argument("--output", type=str, help="Diretório de saída")
-    ap.add_argument("--token", type=str,
-                    help="Token da API do GitHub (prefira a env GITHUB_TOKEN)")
-    ap.add_argument("--no-readme", action="store_true",
-                    help="Não baixar READMEs (coleta mais rápida)")
-    ap.add_argument("--star-max", type=int,
-                    help="Estrelas máximas para o particionamento (padrão 5000)")
-    ap.add_argument("--star-min", type=int,
-                    help="Estrelas mínimas para o particionamento (padrão 1)")
-    ap.add_argument("--export", action="store_true",
-                    help="Ao final, exportar repositories.jsonl")
+                    help="espera minima entre pedidos ao mesmo dominio, em segundos (padrao 1.0)")
+    ap.add_argument("--sites", nargs="+", choices=["github", "sourceforge"],
+                    help="sites a coletar (padrao: os dois)")
+    ap.add_argument("--output", type=str, help="diretorio de saida (padrao data)")
+    ap.add_argument("--block-size", type=int,
+                    help="paginas por arquivo de bloco de HTML (padrao 1000)")
+    ap.add_argument("--stats", action="store_true",
+                    help="so mostrar as estatisticas da coleta e sair")
     ap.add_argument("--export-only", action="store_true",
-                    help="Apenas exportar o JSONL do banco existente e sair")
-    ap.add_argument("--debug", action="store_true",
-                    help="Log detalhado")
+                    help="so exportar data/projetos.jsonl e sair")
+    ap.add_argument("--debug", action="store_true", help="log detalhado")
     args = ap.parse_args()
 
     cfg = build_config(args)
-    if args.debug:
-        cfg.log_level = "DEBUG"
+    if args.delay is not None and args.delay < 1.0:
+        ap.error("--delay deve ser de pelo menos 1 segundo")
     setup_logging(cfg)
-
-    if not cfg.token:
-        logging.getLogger(__name__).warning(
-            "Nenhum GITHUB_TOKEN definido: o limite de 60 req/h torna "
-            "inviavel coletar 50 mil. Gere um token em "
-            "https://github.com/settings/tokens e defina GITHUB_TOKEN."
-        )
 
     crawler = Crawler(cfg)
     try:
+        if args.stats:
+            print(report(crawler.storage, cfg))
+            return
         if args.export_only:
             crawler.export()
             return
         crawler.run()
-        if args.export:
-            crawler.export()
+        crawler.export()
+        print(report(crawler.storage, cfg))
     finally:
         crawler.close()
 

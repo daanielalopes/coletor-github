@@ -1,7 +1,4 @@
-# Segredos (NUNCA versionar o token!)
-.env
-
-# Dados coletados
+# Dados coletados (banco, HTML bruto, JSONL e log)
 data/
 *.db
 *.db-wal

@@ -1,255 +1,386 @@
 """
-Camada de armazenamento do coletor (GitHub).
+Armazenamento do coletor.
 
-Responsabilidades:
-  1. Persistir os REPOSITÓRIOS coletados (documento principal) — SQLite.
-  2. Persistir os USUÁRIOS/organizações proprietários, deduplicados.
-  3. Guardar o README bruto em disco (texto rico para a fase de Indexação).
-  4. Manter o estado do coletor (partições pendentes + já concluídas),
-     permitindo RETOMAR uma coleta interrompida (checkpointing).
+1. SQLite (data/coletor.db) guarda todo o estado da coleta:
+   - fila:        URLs a visitar, separadas por site (fila de cada domínio);
+   - conhecidas:  conjunto de URLs já vistas (na fila ou visitadas). Um link
+                  só entra na fila se ainda não estiver aqui;
+   - visitadas:   cada URL já processada, com código HTTP, resultado e a
+                  posição do HTML bruto no arquivo de bloco;
+   - projetos:    os campos extraídos das páginas de projeto;
+   - pistas:      dados vistos numa listagem sobre um projeto ainda não
+                  visitado (a linguagem do repositório no cartão do tópico);
+   - execucoes:   início e duração de cada execução, para as estatísticas.
 
-SQLite é uma decisão de projeto: banco embarcado, sem servidor,
-transacional e adequado para milhões de linhas — suficiente para as
-50k+ documentos do trabalho.
+   Cada página é registrada numa única transação: sai da fila, entra em
+   visitadas, grava o projeto e enfileira os links novos. Se o programa
+   cair no meio, ou a página inteira foi registrada ou nada foi, e ao rodar
+   de novo a coleta continua exatamente de onde parou.
+
+2. HTML bruto compactado em blocos (data/html/<site>/bloco_00001.gz ...),
+   `block_size` páginas por arquivo. Cada página é um membro gzip
+   independente; a tabela visitadas guarda o arquivo, a posição e o tamanho,
+   então qualquer página pode ser lida de volta sem descompactar o bloco
+   inteiro (ver Storage.read_raw).
 """
 
-import hashlib
+import gzip
 import json
 import os
+import re
 import sqlite3
 import threading
-from typing import Dict, Iterable, List, Optional, Set
-
+from typing import Dict, Iterable, List, Optional
 
 SCHEMA = """
--- Documento principal do RI: repositórios.
-CREATE TABLE IF NOT EXISTS repositories (
-    id              INTEGER PRIMARY KEY,   -- id numérico do GitHub
-    full_name       TEXT UNIQUE,           -- owner/repo
-    name            TEXT,
-    owner_login     TEXT,
-    description     TEXT,
-    readme          TEXT,                  -- texto do README (busca textual)
-    language        TEXT,
-    topics          TEXT,                  -- JSON array
-    stars           INTEGER,
-    forks           INTEGER,
-    watchers        INTEGER,
-    open_issues     INTEGER,
-    size_kb         INTEGER,
-    license_name    TEXT,
-    default_branch  TEXT,
-    homepage        TEXT,
-    html_url        TEXT,
-    is_fork         INTEGER,
-    created_at      TEXT,
-    updated_at      TEXT,
-    pushed_at       TEXT,
-    readme_path     TEXT,                  -- caminho do README bruto em disco
-    fetched_at      TEXT DEFAULT (datetime('now'))
+CREATE TABLE IF NOT EXISTS fila (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    site          TEXT NOT NULL,
+    url           TEXT NOT NULL UNIQUE,
+    tipo          TEXT NOT NULL,        -- project | listing | sitemap
+    prioridade    INTEGER NOT NULL,     -- 0 = projeto achado numa listagem; 1 = demais
+    profundidade  INTEGER NOT NULL,     -- distância em links a partir da seed
+    origem        TEXT                  -- página onde o link foi achado
 );
+CREATE INDEX IF NOT EXISTS idx_fila_ordem ON fila(site, prioridade, profundidade, id);
 
--- Perfis (proprietários) extraídos dos repositórios, deduplicados.
-CREATE TABLE IF NOT EXISTS users (
-    id          INTEGER PRIMARY KEY,
-    login       TEXT UNIQUE,
-    type        TEXT,          -- 'User' | 'Organization'
-    html_url    TEXT,
-    avatar_url  TEXT,
-    seen_at     TEXT DEFAULT (datetime('now'))
+CREATE TABLE IF NOT EXISTS conhecidas (
+    url   TEXT PRIMARY KEY,
+    site  TEXT NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS visitadas (
+    url           TEXT PRIMARY KEY,
+    site          TEXT NOT NULL,
+    tipo          TEXT,
+    profundidade  INTEGER,
+    status_http   INTEGER,
+    resultado     TEXT NOT NULL,        -- projeto | ok | redirecionada | soft404 | duplicada
+                                        -- | erro_http | erro_rede | bloqueada_robots | tipo_invalido
+    detalhe       TEXT,                 -- mensagem de erro ou destino do redirecionamento
+    coletado_em   TEXT NOT NULL,
+    bytes         INTEGER,              -- tamanho baixado (sem compressão)
+    bloco         TEXT,                 -- arquivo de bloco com o HTML bruto
+    posicao       INTEGER,              -- posição do membro gzip no bloco
+    tamanho       INTEGER               -- tamanho compactado
 );
+CREATE INDEX IF NOT EXISTS idx_visitadas_site ON visitadas(site, resultado);
+CREATE INDEX IF NOT EXISTS idx_visitadas_bloco ON visitadas(site, bloco);
 
--- Partições de busca pendentes (fronteira do coletor).
-CREATE TABLE IF NOT EXISTS partitions (
-    key         TEXT PRIMARY KEY,   -- ex.: 'stars=42'
-    query       TEXT,               -- consulta completa da Search API
-    page        INTEGER DEFAULT 1   -- próxima página a buscar nesta partição
+CREATE TABLE IF NOT EXISTS projetos (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    site                TEXT NOT NULL,
+    chave               TEXT NOT NULL,  -- dono/repo no GitHub, nome no SourceForge
+    url                 TEXT NOT NULL,  -- URL canônica do projeto
+    url_coletada        TEXT NOT NULL,
+    coletado_em         TEXT NOT NULL,
+    status_http         INTEGER,
+    nome                TEXT,
+    dono                TEXT,
+    descricao           TEXT,
+    resumo              TEXT,
+    topicos             TEXT,           -- lista JSON
+    categorias          TEXT,           -- lista JSON
+    linguagem           TEXT,
+    estrelas            INTEGER,
+    forks               INTEGER,
+    licenca             TEXT,
+    readme              TEXT,
+    downloads_semana    INTEGER,
+    nota                REAL,
+    num_avaliacoes      INTEGER,
+    ultima_atualizacao  TEXT,
+    hash_conteudo       TEXT,
+    UNIQUE(site, chave)
 );
+CREATE INDEX IF NOT EXISTS idx_projetos_hash ON projetos(site, hash_conteudo);
 
--- Partições já concluídas (não reprocessar).
-CREATE TABLE IF NOT EXISTS done_partitions (
-    key         TEXT PRIMARY KEY
+CREATE TABLE IF NOT EXISTS pistas (
+    url    TEXT PRIMARY KEY,
+    dados  TEXT NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS execucoes (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    inicio    TEXT NOT NULL,
+    fim       TEXT,
+    segundos  REAL DEFAULT 0
 );
-
--- Registro de falhas (tolerância a falhas / auditoria).
-CREATE TABLE IF NOT EXISTS failures (
-    ref         TEXT,
-    status      TEXT,
-    error       TEXT,
-    failed_at   TEXT DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_repo_lang  ON repositories(language);
-CREATE INDEX IF NOT EXISTS idx_repo_stars ON repositories(stars);
 """
+
+PROJECT_COLUMNS = [
+    "site", "chave", "url", "url_coletada", "coletado_em", "status_http",
+    "nome", "dono", "descricao", "resumo", "topicos", "categorias",
+    "linguagem", "estrelas", "forks", "licenca", "readme",
+    "downloads_semana", "nota", "num_avaliacoes", "ultima_atualizacao",
+    "hash_conteudo",
+]
+LIST_COLUMNS = {"topicos", "categorias"}
+
+VISIT_COLUMNS = [
+    "url", "site", "tipo", "profundidade", "status_http", "resultado",
+    "detalhe", "coletado_em", "bytes", "bloco", "posicao", "tamanho",
+]
+
+# Campos exportados para o JSONL, por site (entrada da etapa de indexação).
+EXPORT_FIELDS = {
+    "github": [
+        "site", "url", "coletado_em", "status_http", "nome", "dono",
+        "descricao", "topicos", "linguagem", "estrelas", "forks", "licenca",
+        "readme",
+    ],
+    "sourceforge": [
+        "site", "url", "coletado_em", "status_http", "nome", "descricao",
+        "resumo", "categorias", "licenca", "linguagem", "downloads_semana",
+        "nota", "num_avaliacoes", "ultima_atualizacao",
+    ],
+}
 
 
 class Storage:
-    def __init__(self, output_dir: str, db_filename: str, raw_html_dir: str):
+    def __init__(self, output_dir: str, db_filename: str):
         self.output_dir = output_dir
-        self.raw_dir = os.path.join(output_dir, raw_html_dir)
-        os.makedirs(self.output_dir, exist_ok=True)
-        os.makedirs(self.raw_dir, exist_ok=True)
-
+        os.makedirs(output_dir, exist_ok=True)
         self.db_path = os.path.join(output_dir, db_filename)
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=60)
+        self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL;")
         self._conn.execute("PRAGMA synchronous=NORMAL;")
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         with self._lock:
             self._conn.executescript(SCHEMA)
             self._conn.commit()
 
-    # ---------------- README bruto ----------------
-    def save_raw_readme(self, full_name: str, text: str) -> str:
-        digest = hashlib.sha1(full_name.encode("utf-8")).hexdigest()
-        subdir = os.path.join(self.raw_dir, digest[:2])
-        os.makedirs(subdir, exist_ok=True)
-        path = os.path.join(subdir, f"{digest}.md")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(text)
-        return os.path.relpath(path, self.output_dir)
+    # ---------------- Fila ----------------
+    def _enqueue(self, entries: Iterable[Dict]) -> int:
+        """Enfileira só as URLs que ainda não estão no conjunto de conhecidas."""
+        added = 0
+        for e in entries:
+            cur = self._conn.execute(
+                "INSERT OR IGNORE INTO conhecidas(url, site) VALUES (?, ?)",
+                (e["url"], e["site"]))
+            if cur.rowcount == 1:
+                self._conn.execute(
+                    "INSERT INTO fila(site, url, tipo, prioridade, profundidade, origem) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (e["site"], e["url"], e["tipo"], e["prioridade"],
+                     e["profundidade"], e.get("origem")))
+                added += 1
+        return added
 
-    # ---------------- Repositórios ----------------
-    def save_repository(self, data: Dict) -> bool:
-        """Retorna True se inseriu um repo novo (para contagem de escala)."""
+    def add_to_frontier(self, entries: Iterable[Dict]) -> int:
+        with self._lock:
+            added = self._enqueue(entries)
+            self._conn.commit()
+            return added
+
+    def next_url(self, site: str) -> Optional[Dict]:
+        """
+        Próxima URL da fila do site. Ordem: prioridade, depois profundidade
+        (busca em largura), depois ordem de chegada.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM fila WHERE site = ? "
+                "ORDER BY prioridade, profundidade, id LIMIT 1", (site,)).fetchone()
+            return dict(row) if row else None
+
+    def frontier_count(self, site: Optional[str] = None) -> int:
+        with self._lock:
+            if site:
+                return self._conn.execute(
+                    "SELECT COUNT(*) FROM fila WHERE site = ?", (site,)).fetchone()[0]
+            return self._conn.execute("SELECT COUNT(*) FROM fila").fetchone()[0]
+
+    # ---------------- Consultas usadas durante a coleta ----------------
+    def project_count(self, site: str) -> int:
+        with self._lock:
+            return self._conn.execute(
+                "SELECT COUNT(*) FROM projetos WHERE site = ?", (site,)).fetchone()[0]
+
+    def project_exists(self, site: str, key: str) -> bool:
+        with self._lock:
+            return self._conn.execute(
+                "SELECT 1 FROM projetos WHERE site = ? AND chave = ?",
+                (site, key)).fetchone() is not None
+
+    def hash_exists(self, site: str, digest: str) -> bool:
+        with self._lock:
+            return self._conn.execute(
+                "SELECT 1 FROM projetos WHERE site = ? AND hash_conteudo = ?",
+                (site, digest)).fetchone() is not None
+
+    def hint(self, url: str) -> Optional[Dict]:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT dados FROM pistas WHERE url = ?", (url,)).fetchone()
+            return json.loads(row[0]) if row else None
+
+    # ---------------- Registro de uma página (uma transação) ----------------
+    def record(self, item: Dict, visit: Dict, project: Optional[Dict] = None,
+               hints: Optional[Dict[str, Dict]] = None,
+               links: Optional[List[Dict]] = None,
+               known: Optional[List[tuple]] = None) -> int:
+        """
+        Registra o processamento de uma página e devolve quantos links novos
+        entraram na fila. Tudo acontece numa transação só.
+        """
+        with self._lock:
+            try:
+                self._conn.execute("DELETE FROM fila WHERE id = ?", (item["id"],))
+                self._conn.execute(
+                    f"INSERT OR REPLACE INTO visitadas({', '.join(VISIT_COLUMNS)}) "
+                    f"VALUES ({', '.join('?' * len(VISIT_COLUMNS))})",
+                    [visit.get(c) for c in VISIT_COLUMNS])
+                if project:
+                    values = []
+                    for c in PROJECT_COLUMNS:
+                        v = project.get(c)
+                        if c in LIST_COLUMNS and v is not None:
+                            v = json.dumps(v, ensure_ascii=False)
+                        values.append(v)
+                    self._conn.execute(
+                        f"INSERT INTO projetos({', '.join(PROJECT_COLUMNS)}) "
+                        f"VALUES ({', '.join('?' * len(PROJECT_COLUMNS))})", values)
+                for url, data in (hints or {}).items():
+                    self._conn.execute(
+                        "INSERT OR IGNORE INTO pistas(url, dados) VALUES (?, ?)",
+                        (url, json.dumps(data, ensure_ascii=False)))
+                for url, site in (known or []):
+                    self._conn.execute(
+                        "INSERT OR IGNORE INTO conhecidas(url, site) VALUES (?, ?)",
+                        (url, site))
+                added = self._enqueue(links or [])
+                self._conn.commit()
+                return added
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    # ---------------- Blocos de HTML ----------------
+    def last_block(self, site: str) -> Optional[Dict]:
+        """Último bloco usado pelo site: nome, páginas gravadas e fim dos dados válidos."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT bloco, COUNT(*) AS paginas, MAX(posicao + tamanho) AS fim "
+                "FROM visitadas WHERE site = ? AND bloco = "
+                "(SELECT MAX(bloco) FROM visitadas WHERE site = ?)",
+                (site, site)).fetchone()
+            if not row or row["bloco"] is None:
+                return None
+            return dict(row)
+
+    def read_raw(self, url: str) -> Optional[bytes]:
+        """Lê de volta o HTML bruto de uma URL visitada."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT bloco, posicao, tamanho FROM visitadas WHERE url = ?",
+                (url,)).fetchone()
+        if not row or row["bloco"] is None:
+            return None
+        with open(os.path.join(self.output_dir, row["bloco"]), "rb") as f:
+            f.seek(row["posicao"])
+            return gzip.decompress(f.read(row["tamanho"]))
+
+    # ---------------- Execuções (tempo total) ----------------
+    def start_run(self, started_at: str) -> int:
         with self._lock:
             cur = self._conn.execute(
-                "SELECT 1 FROM repositories WHERE id = ?", (data.get("id"),)
-            )
-            is_new = cur.fetchone() is None
-            self._conn.execute(
-                """
-                INSERT OR REPLACE INTO repositories
-                (id, full_name, name, owner_login, description, readme,
-                 language, topics, stars, forks, watchers, open_issues,
-                 size_kb, license_name, default_branch, homepage, html_url,
-                 is_fork, created_at, updated_at, pushed_at, readme_path)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    data.get("id"),
-                    data.get("full_name"),
-                    data.get("name"),
-                    data.get("owner_login"),
-                    data.get("description"),
-                    data.get("readme"),
-                    data.get("language"),
-                    json.dumps(data.get("topics", []), ensure_ascii=False),
-                    data.get("stars"),
-                    data.get("forks"),
-                    data.get("watchers"),
-                    data.get("open_issues"),
-                    data.get("size_kb"),
-                    data.get("license_name"),
-                    data.get("default_branch"),
-                    data.get("homepage"),
-                    data.get("html_url"),
-                    1 if data.get("is_fork") else 0,
-                    data.get("created_at"),
-                    data.get("updated_at"),
-                    data.get("pushed_at"),
-                    data.get("readme_path"),
-                ),
-            )
-            return is_new
+                "INSERT INTO execucoes(inicio) VALUES (?)", (started_at,))
+            self._conn.commit()
+            return cur.lastrowid
 
-    def save_user(self, user: Dict) -> None:
-        if not user or not user.get("id"):
-            return
+    def update_run(self, run_id: int, seconds: float, finished_at: Optional[str] = None) -> None:
         with self._lock:
             self._conn.execute(
-                """
-                INSERT OR IGNORE INTO users(id, login, type, html_url, avatar_url)
-                VALUES (?,?,?,?,?)
-                """,
-                (
-                    user.get("id"), user.get("login"), user.get("type"),
-                    user.get("html_url"), user.get("avatar_url"),
-                ),
-            )
-
-    def repo_count(self) -> int:
-        with self._lock:
-            return self._conn.execute(
-                "SELECT COUNT(*) FROM repositories").fetchone()[0]
-
-    def user_count(self) -> int:
-        with self._lock:
-            return self._conn.execute(
-                "SELECT COUNT(*) FROM users").fetchone()[0]
-
-    # ---------------- Partições (fronteira) ----------------
-    def add_partitions(self, items: Iterable[tuple]) -> None:
-        """items: iterável de (key, query, page)."""
-        with self._lock:
-            self._conn.executemany(
-                "INSERT OR IGNORE INTO partitions(key, query, page) "
-                "VALUES (?,?,?)", list(items),
-            )
+                "UPDATE execucoes SET segundos = ?, fim = COALESCE(?, fim) WHERE id = ?",
+                (seconds, finished_at, run_id))
             self._conn.commit()
 
-    def update_partition_page(self, key: str, page: int) -> None:
+    # ---------------- Exportação ----------------
+    def export_jsonl(self, path: str) -> int:
+        """Grava um projeto por linha. Devolve o número de projetos exportados."""
+        count = 0
+        tmp = path + ".tmp"
         with self._lock:
-            self._conn.execute(
-                "UPDATE partitions SET page = ? WHERE key = ?", (page, key)
-            )
+            cur = self._conn.execute("SELECT * FROM projetos ORDER BY id")
+            with open(tmp, "w", encoding="utf-8") as f:
+                while True:
+                    rows = cur.fetchmany(500)
+                    if not rows:
+                        break
+                    for row in rows:
+                        rec = dict(row)
+                        for c in LIST_COLUMNS:
+                            if rec.get(c):
+                                rec[c] = json.loads(rec[c])
+                        fields = EXPORT_FIELDS.get(rec["site"], list(rec))
+                        out = {k: rec.get(k) for k in fields}
+                        f.write(json.dumps(out, ensure_ascii=False) + "\n")
+                        count += 1
+        os.replace(tmp, path)
+        return count
 
-    def finish_partition(self, key: str) -> None:
+    # ---------------- Acesso para as estatísticas ----------------
+    def query(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
         with self._lock:
-            self._conn.execute("DELETE FROM partitions WHERE key = ?", (key,))
-            self._conn.execute(
-                "INSERT OR IGNORE INTO done_partitions(key) VALUES (?)", (key,)
-            )
-            self._conn.commit()
-
-    def load_partitions(self) -> List[tuple]:
-        with self._lock:
-            return self._conn.execute(
-                "SELECT key, query, page FROM partitions ORDER BY key"
-            ).fetchall()
-
-    def done_partition_keys(self) -> Set[str]:
-        with self._lock:
-            return {r[0] for r in
-                    self._conn.execute("SELECT key FROM done_partitions")}
-
-    def partitions_pending(self) -> int:
-        with self._lock:
-            return self._conn.execute(
-                "SELECT COUNT(*) FROM partitions").fetchone()[0]
-
-    def record_failure(self, ref: str, status: str, error: str) -> None:
-        with self._lock:
-            self._conn.execute(
-                "INSERT INTO failures(ref, status, error) VALUES (?,?,?)",
-                (ref, status, error),
-            )
-            self._conn.commit()
-
-    def commit(self) -> None:
-        with self._lock:
-            self._conn.commit()
+            return self._conn.execute(sql, params).fetchall()
 
     def close(self) -> None:
         with self._lock:
             self._conn.commit()
             self._conn.close()
 
-    # ---------------- Exportação (para a fase de Indexação) ----------------
-    def export_jsonl(self, path: Optional[str] = None) -> str:
-        path = path or os.path.join(self.output_dir, "repositories.jsonl")
-        with self._lock:
-            cur = self._conn.execute("SELECT * FROM repositories")
-            cols = [c[0] for c in cur.description]
-            rows = cur.fetchall()
-        with open(path, "w", encoding="utf-8") as f:
-            for row in rows:
-                rec = dict(zip(cols, row))
-                if rec.get("topics"):
-                    try:
-                        rec["topics"] = json.loads(rec["topics"])
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        return path
+
+class BlockWriter:
+    """
+    Grava o HTML bruto compactado em blocos de `block_size` páginas.
+
+    Cada página vira um membro gzip anexado ao fim do bloco atual. Ao
+    retomar uma coleta, o bloco é cortado no fim do último membro registrado
+    no banco, descartando restos de uma gravação interrompida.
+    """
+
+    def __init__(self, storage: Storage, raw_dir: str, site: str, block_size: int):
+        self.rel_dir = f"{raw_dir}/{site}"
+        self.abs_dir = os.path.join(storage.output_dir, raw_dir, site)
+        os.makedirs(self.abs_dir, exist_ok=True)
+        self.block_size = block_size
+        self.index, self.count = 1, 0
+        self._fh = None
+
+        last = storage.last_block(site)
+        if last:
+            self.index = int(re.search(r"(\d+)\.gz$", last["bloco"]).group(1))
+            self.count = last["paginas"]
+            path = self._path()
+            if os.path.exists(path) and os.path.getsize(path) > last["fim"]:
+                with open(path, "r+b") as f:
+                    f.truncate(last["fim"])
+
+    def _name(self) -> str:
+        return f"bloco_{self.index:05d}.gz"
+
+    def _path(self) -> str:
+        return os.path.join(self.abs_dir, self._name())
+
+    def write(self, content: bytes):
+        """Grava uma página e devolve (bloco, posição, tamanho compactado)."""
+        if self.count >= self.block_size:
+            self.close()
+            self.index += 1
+            self.count = 0
+        if self._fh is None:
+            self._fh = open(self._path(), "ab")
+        data = gzip.compress(content, compresslevel=6)
+        self._fh.seek(0, os.SEEK_END)
+        offset = self._fh.tell()
+        self._fh.write(data)
+        self._fh.flush()
+        self.count += 1
+        return f"{self.rel_dir}/{self._name()}", offset, len(data)
+
+    def close(self) -> None:
+        if self._fh is not None:
+            self._fh.close()
+            self._fh = None

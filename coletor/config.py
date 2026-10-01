@@ -1,101 +1,74 @@
 """
-Configuração central do coletor (API do GitHub).
+Configuração central do coletor.
 
-Todas as políticas, tolerâncias e critérios de parada do coletor ficam
-concentrados aqui para facilitar a justificativa das decisões de projeto
-exigida no relatório (Descrição do coletor - 40%).
-
-Fonte de dados: API REST oficial do GitHub (https://api.github.com).
-Documento principal: REPOSITÓRIOS. De cada repositório extraímos também o
-PROPRIETÁRIO (usuário/organização), armazenado de forma deduplicada.
+Todas as políticas do coletor (boas maneiras, tolerância a falhas, critério
+de parada, seeds e armazenamento) ficam concentradas aqui, para facilitar a
+leitura e a justificativa das decisões no relatório.
 """
 
-import os
-from dataclasses import dataclass, field
-from typing import List
-
-
-def _load_token() -> str:
-    """
-    Lê o token da API do GitHub de forma segura:
-      1. variável de ambiente GITHUB_TOKEN;
-      2. arquivo .env na raiz (linha GITHUB_TOKEN=...).
-    O token NUNCA fica no código versionado.
-    """
-    token = os.environ.get("GITHUB_TOKEN", "").strip()
-    if token:
-        return token
-    # Fallback: .env simples (sem depender de libs externas).
-    for path in (".env", os.path.join(os.path.dirname(__file__), "..", ".env")):
-        try:
-            with open(path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("GITHUB_TOKEN") and "=" in line:
-                        return line.split("=", 1)[1].strip().strip('"').strip("'")
-        except FileNotFoundError:
-            continue
-    return ""
+from dataclasses import dataclass
+from typing import Optional, Tuple
 
 
 @dataclass
 class CrawlerConfig:
-    # -------------------- Identidade / API --------------------
-    api_base: str = "https://api.github.com"
-    # Token pessoal (grátis). Sem token: 60 req/h. Com token: 5.000 req/h.
-    token: str = field(default_factory=_load_token)
-    # User-Agent é OBRIGATÓRIO pela API do GitHub.
-    user_agent: str = "GitHubRICrawler/1.0 (Trabalho academico de RI)"
-    # Versão da API (boa prática recomendada pelo GitHub).
-    api_version: str = "2022-11-28"
+    # -------------------- Identificação --------------------
+    user_agent: str = "ColetorRI-PUCMinas/1.0 (trabalho academico)"
 
-    # -------------------- Política de polidez --------------------
-    # A API do GitHub tem rate limit próprio; respeitamos os cabeçalhos
-    # X-RateLimit-Remaining / X-RateLimit-Reset. Ainda assim, um pequeno
-    # delay entre requisições evita a proteção de "abuso/secondary limit".
-    request_delay: float = 0.8
-    request_delay_jitter: float = 0.4
-    num_workers: int = 1  # a Search API não recomenda concorrência alta
+    # -------------------- Boas maneiras --------------------
+    # Espera mínima entre dois pedidos ao mesmo domínio, em segundos. Se o
+    # robots.txt tiver Crawl-delay maior, vale o Crawl-delay.
+    min_delay: float = 1.0
 
     # -------------------- Tolerância a falhas --------------------
     request_timeout: float = 30.0
-    max_retries: int = 4
-    backoff_factor: float = 2.0
-    backoff_base: float = 2.0
-    retry_status_codes: tuple = (429, 500, 502, 503, 504)
+    max_retries: int = 3               # novas tentativas após a primeira
+    backoff_base: float = 5.0          # 5 s, 10 s, 20 s
+    max_backoff: float = 300.0
+    retry_status_codes: Tuple[int, ...] = (429, 500, 502, 503, 504)
+    max_page_bytes: int = 5_000_000    # páginas maiores são cortadas
+    robots_retry_wait: float = 60.0    # espera para tentar ler o robots.txt de novo
+    # Se o site continuar respondendo 429/503 depois de todas as tentativas,
+    # a thread desse site faz uma pausa maior antes de seguir para a próxima URL.
+    throttle_pause: float = 120.0
 
     # -------------------- Critério de parada --------------------
-    # Meta de repositórios coletados. >50.000 = nota máxima em Escala.
-    target_pages: int = 50000
-    max_frontier_size: int = 1000000
+    target_per_site: int = 25000       # páginas de projeto por site
+    max_depth: Optional[int] = None    # None = sem limite de profundidade
+    sites: Tuple[str, ...] = ("github", "sourceforge")
 
-    # -------------------- Coleta de README --------------------
-    # O README é o texto rico usado na busca textual (fase de Indexação).
-    fetch_readme: bool = True
-    readme_max_bytes: int = 200000  # trunca READMEs gigantes
+    # -------------------- Seeds --------------------
+    github_seed_topics: Tuple[str, ...] = (
+        "python", "javascript", "machine-learning", "java", "linux",
+        "typescript", "go", "rust", "cpp", "c", "php", "ruby", "android",
+        "docker", "react", "nodejs", "deep-learning", "security", "database",
+        "kubernetes", "api", "cli", "game-engine", "swift", "kotlin",
+        "csharp", "data-visualization", "compiler", "emulator",
+        "bioinformatics",
+    )
+    # Páginas de cada tópico que entram como seed (?page=1..N). O GitHub
+    # mostra 20 repositórios por página e no máximo 50 páginas por tópico.
+    github_seed_pages: int = 50
+
+    sourceforge_seed_categories: Tuple[str, ...] = (
+        "software-development", "system", "internet", "games", "multimedia",
+        "business", "scientific-engineering", "communications",
+        "artificial-intelligence", "education", "database", "security",
+        "formats-and-protocols", "desktop-environment", "text-editors",
+        "linux", "windows", "mac",
+    )
+    # Páginas de cada categoria que entram como seed (?page=1..N). O
+    # SourceForge mostra 25 projetos por página.
+    sourceforge_seed_pages: int = 20
 
     # -------------------- Armazenamento --------------------
     output_dir: str = "data"
-    db_filename: str = "github.db"
-    raw_html_dir: str = "raw_readme"  # aqui guardamos os READMEs brutos
-    save_raw_html: bool = True
-    checkpoint_every: int = 100
+    db_filename: str = "coletor.db"
+    raw_dir: str = "html"              # HTML bruto em blocos gzip
+    block_size: int = 1000             # páginas por arquivo de bloco
+    export_filename: str = "projetos.jsonl"
+    readme_max_chars: int = 100_000
 
-    # -------------------- Estratégia de busca / particionamento --------
-    # A Search API do GitHub retorna no máximo 1.000 resultados por consulta.
-    # Para superar 50 mil, PARTICIONAMOS o espaço de busca em muitas consultas
-    # menores (cada uma <= 1.000 resultados) e somamos. Aqui particionamos por
-    # FAIXA DE ESTRELAS: repositórios com N estrelas exatas. Isso cria milhares
-    # de partições disjuntas cobrindo praticamente todos os repositórios.
-    #
-    # Consulta base: filtramos apenas repositórios com >=1 estrela para focar
-    # em conteúdo minimamente relevante (decisão de projeto).
-    search_base_query: str = "stars:>=1"
-    # Particionamento primário por nº exato de estrelas, de star_max até star_min.
-    star_min: int = 1
-    star_max: int = 5000
-    per_page: int = 100  # máximo permitido pela API
-
-    # -------------------- Logging --------------------
+    # -------------------- Log --------------------
     log_level: str = "INFO"
-    log_file: str = "crawler.log"
+    log_filename: str = "coletor.log"
