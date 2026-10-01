@@ -25,12 +25,23 @@ class CrawlerConfig:
     max_retries: int = 3               # novas tentativas após a primeira
     backoff_base: float = 5.0          # 5 s, 10 s, 20 s
     max_backoff: float = 300.0
-    retry_status_codes: Tuple[int, ...] = (429, 500, 502, 503, 504)
+    # 520 a 524 são erros do Cloudflare (usado pelo SourceForge) quando o
+    # servidor de origem não responde; também são temporários.
+    retry_status_codes: Tuple[int, ...] = (429, 500, 502, 503, 504, 520, 521, 522, 523, 524)
     max_page_bytes: int = 5_000_000    # páginas maiores são cortadas
     robots_retry_wait: float = 60.0    # espera para tentar ler o robots.txt de novo
     # Se o site continuar respondendo 429/503 depois de todas as tentativas,
-    # a thread desse site faz uma pausa maior antes de seguir para a próxima URL.
+    # aquele tipo de página (projeto, listagem ou sitemap) fica em espera:
+    # 2 min, dobrando a cada nova falha, até 1 h. A URL continua na fila e a
+    # thread segue com os outros tipos de página.
     throttle_pause: float = 120.0
+    max_throttle_pause: float = 3600.0
+    # Pane do site: se vierem `incident_threshold` respostas suspeitas seguidas
+    # (soft-404 ou redirecionamento para a página inicial), o site está com
+    # problema, e não as páginas. Essas URLs voltam para a fila e a thread do
+    # site pausa `incident_pause` segundos antes de continuar.
+    incident_threshold: int = 10
+    incident_pause: float = 300.0
 
     # -------------------- Critério de parada --------------------
     target_per_site: int = 25000       # páginas de projeto por site

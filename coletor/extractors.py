@@ -15,6 +15,7 @@ import hashlib
 import html as htmllib
 import re
 from typing import Dict, List, Optional
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
@@ -76,14 +77,19 @@ def extract_links(soup: BeautifulSoup, base_url: str) -> List[str]:
     for link in soup.find_all("link", rel="next", href=True):
         found.append(link["href"])
     # Paginação do GitHub: o botão "Load more" é um formulário GET com um
-    # campo escondido page=N. Montamos a URL que o formulário enviaria.
+    # campo escondido page=N. Montamos a URL que o formulário enviaria. A
+    # partir da página 2 o action já vem com ?page=N; o navegador troca esse
+    # valor pelo do campo, então fazemos o mesmo (trocar, não acrescentar).
     for form in soup.find_all("form"):
         if (form.get("method") or "get").lower() != "get":
             continue
         page = form.find("input", attrs={"name": "page"})
         if page and page.get("value") and form.get("action"):
-            sep = "&" if "?" in form["action"] else "?"
-            found.append(f"{form['action']}{sep}page={page['value']}")
+            action = urlsplit(urljoin(base_url, form["action"]))
+            query = dict(parse_qsl(action.query, keep_blank_values=True))
+            query["page"] = page["value"]
+            found.append(urlunsplit((action.scheme, action.netloc, action.path,
+                                     urlencode(query), "")))
 
     out, seen = [], set()
     for href in found:

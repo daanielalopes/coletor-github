@@ -227,6 +227,8 @@ diferentes:
 - remove o fragmento (`#readme`);
 - remove parâmetros de rastreio (`utm_*`, `ref`, `source`, `fbclid`...) e
   `page=1`, que é a mesma página sem o parâmetro;
+- se um parâmetro aparece repetido (`?page=2&page=3`), fica só o último
+  valor, como fazem os servidores (ver seção 3.5);
 - padroniza a barra final conforme a forma canônica de cada site: sem barra no
   GitHub (`github.com/psf/requests`) e com barra no SourceForge
   (`sourceforge.net/projects/sevenzip/`), que redireciona para a versão com
@@ -429,9 +431,19 @@ rápida sem aumentar a carga sobre nenhum dos dois.
 **Backoff em 429 e 503.** Se o site responder 429 (muitos pedidos) ou 503
 (indisponível), o coletor espera cada vez mais antes de tentar de novo: 5, 10
 e 20 segundos (mais um pequeno valor aleatório), até 3 novas tentativas. Se o
-site mandar o cabeçalho `Retry-After`, esse tempo é respeitado. Se mesmo assim
-o erro continuar, a URL é registrada como erro e a thread do site faz uma
-pausa de 2 minutos antes de seguir.
+site mandar o cabeçalho `Retry-After`, esse tempo é respeitado. Os erros 520 a
+524 do Cloudflare (usado pelo SourceForge quando o servidor de origem não
+responde) recebem o mesmo tratamento.
+
+Se mesmo assim o 429 ou o 503 continuar, aquele **tipo de página** (projeto,
+listagem ou sitemap) entra em espera: 2 minutos na primeira vez, dobrando a
+cada nova falha, até 1 hora. A URL não é perdida: continua na fila e é tentada
+de novo quando a espera acaba. Enquanto isso, a thread segue com os outros
+tipos de página, sempre no ritmo de um pedido por segundo. Fizemos assim porque,
+na coleta completa, o GitHub passou a limitar só as páginas de tópico e
+continuou servindo normalmente as páginas de repositório (seção 3.5). Mudar os
+cabeçalhos do pedido para escapar do limite seria possível, mas não faria
+sentido: o 429 é o site pedindo para desacelerar, e o coletor obedece.
 
 **Outros cuidados:**
 
@@ -460,6 +472,12 @@ ritmo de um pedido por segundo, com identificação e para fins acadêmicos.
 - **404 e outros erros HTTP:** registrados como `erro_http` no banco e no log;
   a coleta continua.
 - **Soft-404 e duplicadas:** descartadas, como descrito na seção 2.7.
+- **Pane do site:** uma resposta suspeita isolada (soft-404 ou
+  redirecionamento para a página inicial) é normal. Dez seguidas indicam que o
+  problema é do site, e não das páginas. Nesse caso essas URLs voltam para a
+  fila, porque nunca foram coletadas de verdade, e a thread do site pausa 5
+  minutos antes de continuar. Essa proteção foi criada depois da instabilidade
+  do SourceForge descrita na seção 3.5.
 - **Páginas estranhas:** corpo maior que 5 MB é cortado, e conteúdo que não é
   HTML (ou XML, no caso dos sitemaps) é descartado.
 - **Falha numa thread:** um erro inesperado numa thread é registrado no log e
@@ -477,7 +495,14 @@ ritmo de um pedido por segundo, com identificação e para fins acadêmicos.
   `twbs/bootstrap`; como o destino já tinha sido coletado, foi ignorado;
 - com um servidor local, uma URL que responde 429 e depois 503 foi baixada na
   terceira tentativa, e uma URL que sempre responde 503 foi abandonada depois
-  de 1 pedido e 3 novas tentativas.
+  de 1 pedido e 3 novas tentativas;
+- numa cópia do banco da coleta completa, com o GitHub limitando as páginas de
+  tópico, a primeira listagem recebeu 429 nas 4 tentativas, as listagens
+  entraram em espera e o coletor seguiu salvando páginas de repositório, uma
+  por segundo, sem perder a URL da listagem;
+- num banco de teste, três respostas suspeitas seguidas dispararam a proteção
+  contra pane e as URLs voltaram para a fila com o mesmo tipo, prioridade e
+  profundidade.
 
 ### 2.12 Armazenamento
 
@@ -571,6 +596,56 @@ Obtidos com `python run_coletor.py --stats` depois da coleta completa.
 | licença | _preencher_ | downloads | _preencher_ |
 | README | _preencher_ | nota | _preencher_ |
 | | | última atualização | _preencher_ |
+
+### 3.5 Ocorrências durante a coleta completa
+
+Acompanhamos a coleta pelas estatísticas (`--stats`) e por uma contagem de
+páginas e de projetos por hora, tirada do banco. Depois de cerca de 9 horas e
+40 minutos, com 32.580 páginas de projeto salvas, essa contagem revelou três
+problemas. A coleta foi parada com Ctrl+C, os problemas foram corrigidos e a
+coleta foi retomada do mesmo ponto, sem perder nada do que já tinha sido
+coletado.
+
+**1. Erro na paginação do GitHub (erro do coletor).** O botão "Load more" das
+páginas de tópico é um formulário. A partir da página 2, o endereço do
+formulário já traz `?page=N`, e o coletor acrescentava mais um `page` em vez de
+trocar o valor, gerando URLs como `topics/cli?page=19&page=20&page=21`. Para a
+normalização cada uma era uma URL nova, mas todas mostravam a mesma listagem, e
+cada uma só trazia o link para a próxima. A partir das 3h, o GitHub passou a
+baixar cerca de mil páginas por hora com 0 a 4 projetos novos. Ao todo foram
+baixadas 4.721 listagens inúteis, que aparecem na contagem de páginas baixadas
+da seção 3.4. O teste com `--target 50` não pegou o erro porque só passou pela
+página 1 dos tópicos, onde o endereço do formulário não tem `?page`.
+
+Correção: o link passou a ser montado trocando o número da página, como faz o
+navegador; a normalização passou a manter só o último valor de um parâmetro
+repetido, então esse tipo de URL não pode mais aparecer; e as 1.288 URLs desse
+tipo que ainda estavam na fila foram removidas.
+
+**2. Limite do GitHub nas páginas de tópico.** Junto com o erro acima, o GitHub
+começou a responder 429 nas páginas de tópico, primeiro de vez em quando (4 a
+17 vezes por hora a partir das 2h) e depois sempre, enquanto as páginas de
+repositório continuavam respondendo normalmente. Antes, cada 429 persistente
+fazia a thread inteira pausar 2 minutos e a URL era registrada como erro. A
+política passou a ser a espera por tipo de página descrita na seção 2.10.
+
+**3. Instabilidade do SourceForge.** Entre 0h e 2h o SourceForge devolveu 396
+erros 522 (o Cloudflare não conseguia falar com o servidor do site). Entre 2h
+e 5h, o site passou a redirecionar quase tudo para a página inicial (5.830
+redirecionamentos, incluindo 111 sitemaps) e a servir páginas de projeto sem
+conteúdo, com código 200 (4.168 soft-404). Nessas horas nenhum projeto foi
+salvo. O descarte de soft-404 funcionou e nenhuma dessas páginas foi salva como
+documento, mas todas foram marcadas como visitadas. Testamos algumas delas
+depois e todas abriram normalmente.
+
+Correção: as 10.394 URLs afetadas voltaram para a fila (não é revisitação,
+porque nunca foram coletadas de verdade); os erros 520 a 524 passaram a ser
+tratados como temporários; e foi criada a proteção contra pane descrita na
+seção 2.11.
+
+**Lição:** o total de páginas baixadas continuava subindo normalmente durante
+os três problemas. Foi a contagem por hora, separando páginas baixadas de
+projetos salvos, que mostrou que a coleta estava trabalhando sem render.
 
 ---
 

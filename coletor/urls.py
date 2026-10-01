@@ -98,15 +98,16 @@ def normalize(url: str, base: Optional[str] = None) -> Optional[str]:
     if not host:
         return None
 
-    params = []
+    # Parâmetro repetido (?page=2&page=3): vale o último valor, como fazem os
+    # servidores. Sem isso, cada repetição viraria uma "página nova".
+    params = {}
     for key, value in parse_qsl(parts.query, keep_blank_values=True):
         if key in TRACKING_PARAMS or key.startswith("utm_"):
             continue
-        if key == "page" and value == "1":
-            continue
-        params.append((key, value))
-    params.sort()
-    query = urlencode(params)
+        params[key] = value
+    if params.get("page") == "1":
+        del params["page"]
+    query = urlencode(sorted(params.items()))
 
     path = parts.path or "/"
     path = re.sub(r"/{2,}", "/", path)

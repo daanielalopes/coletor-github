@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS fila (
     origem        TEXT                  -- página onde o link foi achado
 );
 CREATE INDEX IF NOT EXISTS idx_fila_ordem ON fila(site, prioridade, profundidade, id);
+CREATE INDEX IF NOT EXISTS idx_fila_tipo ON fila(site, tipo, prioridade, profundidade, id);
 
 CREATE TABLE IF NOT EXISTS conhecidas (
     url   TEXT PRIMARY KEY,
@@ -107,6 +108,8 @@ CREATE TABLE IF NOT EXISTS execucoes (
     segundos  REAL DEFAULT 0
 );
 """
+
+PAGE_KINDS = ("project", "listing", "sitemap")
 
 PROJECT_COLUMNS = [
     "site", "chave", "url", "url_coletada", "coletado_em", "status_http",
@@ -174,16 +177,26 @@ class Storage:
             self._conn.commit()
             return added
 
-    def next_url(self, site: str) -> Optional[Dict]:
+    def next_url(self, site: str, exclude: Iterable[str] = ()) -> Optional[Dict]:
         """
         Próxima URL da fila do site. Ordem: prioridade, depois profundidade
         (busca em largura), depois ordem de chegada.
+
+        `exclude` são tipos de página que estão em espera porque o site pediu
+        para desacelerar (429) nesse tipo; as URLs deles continuam na fila.
         """
+        best = None
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM fila WHERE site = ? "
-                "ORDER BY prioridade, profundidade, id LIMIT 1", (site,)).fetchone()
-            return dict(row) if row else None
+            for kind in PAGE_KINDS:
+                if kind in exclude:
+                    continue
+                row = self._conn.execute(
+                    "SELECT * FROM fila WHERE site = ? AND tipo = ? "
+                    "ORDER BY prioridade, profundidade, id LIMIT 1", (site, kind)).fetchone()
+                if row and (best is None or (row["prioridade"], row["profundidade"], row["id"])
+                            < (best["prioridade"], best["profundidade"], best["id"])):
+                    best = row
+        return dict(best) if best else None
 
     def frontier_count(self, site: Optional[str] = None) -> int:
         with self._lock:
@@ -256,6 +269,26 @@ class Storage:
             except Exception:
                 self._conn.rollback()
                 raise
+
+    def requeue(self, items: Iterable[Dict]) -> int:
+        """
+        Devolve para a fila URLs cuja visita falhou por um problema do site
+        (e não da página). Elas saem de `visitadas` e voltam para o fim da fila,
+        com o mesmo tipo, prioridade e profundidade. Não é revisitação: essas
+        páginas nunca chegaram a ser coletadas.
+        """
+        with self._lock:
+            n = 0
+            for it in items:
+                self._conn.execute("DELETE FROM visitadas WHERE url = ?", (it["url"],))
+                cur = self._conn.execute(
+                    "INSERT OR IGNORE INTO fila(site, url, tipo, prioridade, profundidade, origem) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (it["site"], it["url"], it["tipo"], it["prioridade"],
+                     it["profundidade"], it.get("origem")))
+                n += cur.rowcount
+            self._conn.commit()
+            return n
 
     # ---------------- Blocos de HTML ----------------
     def last_block(self, site: str) -> Optional[Dict]:

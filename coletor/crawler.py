@@ -72,6 +72,10 @@ class SiteWorker(threading.Thread):
         self.pages = 0        # pedidos HTTP feitos nesta execução
         self.processed = 0    # URLs tiradas da fila nesta execução
         self.done = False
+        self.root = normalize(BASE_URLS[site])
+        self.suspects: List[Dict] = []   # respostas suspeitas seguidas (ver _track)
+        self.kind_until: Dict[str, float] = {}   # tipo de página -> em espera até (ver _hold_kind)
+        self.kind_wait: Dict[str, float] = {}    # tipo de página -> duração da última espera
 
     # ---------------- Laço principal ----------------
     def run(self) -> None:
@@ -96,8 +100,14 @@ class SiteWorker(threading.Thread):
             if self.projects >= self.cfg.target_per_site:
                 logger.info("Meta atingida: %d paginas de projeto.", self.projects)
                 return
-            item = self.storage.next_url(self.site)
+            now = time.monotonic()
+            held = {k for k, t in self.kind_until.items() if t > now}
+            item = self.storage.next_url(self.site, exclude=held)
             if item is None:
+                if held:
+                    # Só sobraram tipos de página em espera: aguarda o primeiro liberar.
+                    self.stop_event.wait(max(1.0, min(self.kind_until[k] for k in held) - now))
+                    continue
                 # A outra thread ainda pode achar links para este site.
                 if self.crawler.others_running(self):
                     self.stop_event.wait(5)
@@ -166,6 +176,48 @@ class SiteWorker(threading.Thread):
                         "profundidade": depth, "origem": item["url"]})
         return out
 
+    # ---------------- Registro e detecção de pane do site ----------------
+    def _record(self, item: Dict, visit: Dict, **kwargs) -> int:
+        added = self.storage.record(item, visit, **kwargs)
+        self._track(item, visit)
+        return added
+
+    def _track(self, item: Dict, visit: Dict) -> None:
+        """
+        Detecta quando o problema é do site e não da página.
+
+        Durante uma instabilidade o SourceForge passou a redirecionar quase
+        tudo para a página inicial e a servir páginas sem conteúdo com código
+        200. Uma resposta dessas isolada é normal; muitas seguidas indicam que
+        o site está com problema. Nesse caso as URLs voltam para a fila (elas
+        não foram coletadas de verdade) e a thread pausa antes de continuar.
+        """
+        result = visit.get("resultado")
+        if result == "bloqueada_robots":
+            return
+        suspicious = result == "soft404" or (
+            result == "redirecionada" and visit.get("detalhe") == self.root)
+        if not suspicious:
+            self.suspects.clear()
+            return
+        self.suspects.append(item)
+        if len(self.suspects) >= self.cfg.incident_threshold:
+            n = self.storage.requeue(self.suspects)
+            logger.warning("%d respostas suspeitas seguidas (soft-404 ou redirecionamento para a "
+                           "pagina inicial): o site parece estar com problema. %d URLs voltaram "
+                           "para a fila. Pausa de %.0fs.",
+                           len(self.suspects), n, self.cfg.incident_pause)
+            self.suspects.clear()
+            self.stop_event.wait(self.cfg.incident_pause)
+
+    def _hold_kind(self, kind: str) -> float:
+        """Coloca um tipo de página em espera: 2 min, dobrando a cada falha seguida, até 1 h."""
+        wait = min(max(2 * self.kind_wait.get(kind, 0.0), self.cfg.throttle_pause),
+                   self.cfg.max_throttle_pause)
+        self.kind_wait[kind] = wait
+        self.kind_until[kind] = time.monotonic() + wait
+        return wait
+
     # ---------------- Processamento de uma URL ----------------
     def _extract_project(self, soup, url: str) -> Optional[Dict]:
         if self.site == GITHUB:
@@ -183,7 +235,7 @@ class SiteWorker(threading.Thread):
         # 2. robots.txt
         if not self.robots.allowed(url):
             visit["resultado"] = "bloqueada_robots"
-            self.storage.record(item, visit)
+            self._record(item, visit)
             logger.info("Bloqueada pelo robots.txt: %s", url)
             return
 
@@ -197,7 +249,7 @@ class SiteWorker(threading.Thread):
 
         if res.status is None:
             visit.update({"resultado": "erro_rede", "detalhe": res.error})
-            self.storage.record(item, visit)
+            self._record(item, visit)
             logger.warning("Erro de rede (desistindo): %s | %s", url, res.error)
             return
 
@@ -205,21 +257,28 @@ class SiteWorker(threading.Thread):
             target = normalize(res.headers.get("Location", ""), url)
             links = self._make_links(item, [target], redirect=True)
             visit.update({"resultado": "redirecionada", "detalhe": target})
-            added = self.storage.record(item, visit, links=links)
+            added = self._record(item, visit, links=links)
             logger.info("%d redirecionada %s -> %s%s", res.status, url, target,
                         "" if added else " (ignorada)")
             return
 
+        if res.status in (429, 503):
+            # O site continua pedindo para esperar mesmo depois do backoff. A URL
+            # fica na fila e este tipo de página entra em espera; os outros
+            # tipos continuam, no mesmo ritmo de sempre.
+            wait = self._hold_kind(kind)
+            logger.warning("HTTP %d persistente em %s. Paginas do tipo %s ficam em espera por "
+                           "%.0f min; a URL continua na fila e a coleta segue com os outros tipos.",
+                           res.status, url, kind, wait / 60)
+            return
+
         if res.status != 200:
             visit.update({"resultado": "erro_http", "detalhe": f"HTTP {res.status}"})
-            self.storage.record(item, visit)
+            self._record(item, visit)
             logger.info("HTTP %d: %s", res.status, url)
-            if res.status in (429, 503):
-                # O site continua pedindo para esperar: desacelera antes de seguir.
-                logger.warning("O site continua sobrecarregado. Pausa de %.0fs.",
-                               self.cfg.throttle_pause)
-                self.stop_event.wait(self.cfg.throttle_pause)
             return
+
+        self.kind_wait.pop(kind, None)  # o tipo voltou a responder: a próxima espera recomeça curta
 
         ctype = res.content_type
         project, hints, known = None, None, []
@@ -227,14 +286,14 @@ class SiteWorker(threading.Thread):
         if kind == "sitemap":
             if "xml" not in ctype and not res.content.lstrip().startswith(b"<?xml"):
                 visit.update({"resultado": "tipo_invalido", "detalhe": ctype})
-                self.storage.record(item, visit)
+                self._record(item, visit)
                 return
             found = extract_sitemap_links(res.content)
             visit["resultado"] = "ok"
         else:
             if "html" not in ctype:
                 visit.update({"resultado": "tipo_invalido", "detalhe": ctype})
-                self.storage.record(item, visit)
+                self._record(item, visit)
                 return
             soup = parse_html(res.content, res.encoding)
             if kind == "project":
@@ -242,7 +301,7 @@ class SiteWorker(threading.Thread):
                 if project is None:
                     # 200, mas sem as marcas de uma página de projeto: descartada.
                     visit.update({"resultado": "soft404"})
-                    self.storage.record(item, visit)
+                    self._record(item, visit)
                     logger.info("Descartada (soft-404): %s", url)
                     return
                 canonical = normalize(project.get("url") or "")
@@ -251,7 +310,7 @@ class SiteWorker(threading.Thread):
                 if self.storage.project_exists(self.site, project["chave"]) or (
                         digest and self.storage.hash_exists(self.site, digest)):
                     visit.update({"resultado": "duplicada", "detalhe": project["chave"]})
-                    self.storage.record(item, visit, known=known)
+                    self._record(item, visit, known=known)
                     logger.info("Descartada (duplicada): %s", url)
                     return
                 visit["resultado"] = "projeto"
@@ -270,7 +329,7 @@ class SiteWorker(threading.Thread):
             project.update({"site": self.site, "url_coletada": url,
                             "coletado_em": visit["coletado_em"],
                             "status_http": res.status})
-        added = self.storage.record(item, visit, project=project, hints=hints,
+        added = self._record(item, visit, project=project, hints=hints,
                                     links=links, known=known)
         if project:
             self.projects += 1
