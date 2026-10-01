@@ -1,0 +1,68 @@
+{
+  "gerado_em": "2026-10-01T15:37:49-03:00",
+  "periodo_da_coleta": {
+    "primeira_pagina": "2026-09-30T20:53:22-03:00",
+    "ultima_pagina": "2026-10-01T10:12:31-03:00"
+  },
+  "execucoes": [
+    {
+      "inicio": "2026-09-30T20:53:21-03:00",
+      "fim": "2026-09-30T20:54:18-03:00",
+      "segundos": 57.036926600150764
+    },
+    {
+      "inicio": "2026-09-30T20:57:06-03:00",
+      "fim": "2026-10-01T06:44:35-03:00",
+      "segundos": 35249.13357970002
+    },
+    {
+      "inicio": "2026-10-01T07:05:05-03:00",
+      "fim": "2026-10-01T10:12:31-03:00",
+      "segundos": 11246.461060900008
+    }
+  ],
+  "tempo_total_segundos": 46553,
+  "paginas_de_projeto": {
+    "github": 26000,
+    "sourceforge": 26000
+  },
+  "paginas_baixadas": {
+    "github": 33555,
+    "sourceforge": 26956
+  },
+  "resultado_das_urls_visitadas": {
+    "github/bloqueada_robots": 3,
+    "github/duplicada": 2,
+    "github/erro_http": 82,
+    "github/ok": 7459,
+    "github/projeto": 26000,
+    "github/redirecionada": 12,
+    "sourceforge/duplicada": 3,
+    "sourceforge/erro_http": 40,
+    "sourceforge/ok": 883,
+    "sourceforge/projeto": 26000,
+    "sourceforge/redirecionada": 30
+  },
+  "codigos_http": {
+    "github/200": 33461,
+    "github/301": 11,
+    "github/302": 1,
+    "github/404": 20,
+    "github/429": 62,
+    "sourceforge/200": 26886,
+    "sourceforge/301": 30,
+    "sourceforge/404": 40
+  },
+  "urls_conhecidas": 266676,
+  "urls_na_fila_ao_final": 204874,
+  "bytes_baixados_sem_gzip": 16346637120,
+  "projetos_jsonl": {
+    "linhas": 52000,
+    "por_site": {
+      "sourceforge": 26000,
+      "github": 26000
+    },
+    "sha256": "e88418b5ec70efbd36512df5dade9cc7a49f9c0a9dcb14138dc3ec389a509eb0",
+    "bytes": 244297219
+  }
+}

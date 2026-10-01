@@ -1,0 +1,64 @@
+================================================================
+ESTATISTICAS DA COLETA
+================================================================
+Paginas baixadas (total):      60511
+Paginas de projeto (total):    52000
+Erros (total):                 122
+Tempo total de coleta:         12h 55min 52s em 3 execucao(oes)
+Taxa media:                    4679 paginas/hora
+Volume baixado (sem gzip):     15.2 GB
+
+--- github ----------------------------------------------------
+Paginas de projeto:            26000 (meta 26000)
+Paginas baixadas:              33555
+URLs conhecidas:               192433
+URLs na fila:                  157587
+Resultado das URLs visitadas:
+    paginas de projeto salvas        26000
+    listagens e sitemaps             7459
+    erros HTTP (404 etc.)            82
+    redirecionamentos                12
+    bloqueadas pelo robots.txt       3
+    descartadas: duplicadas          2
+Codigos HTTP: 200: 33461, 429: 62, 404: 20, 301: 11, 302: 1
+Preenchimento dos campos (% dos projetos):
+    nome                   100.0%
+    dono                   100.0%
+    descricao               99.5%
+    topicos                 98.0%
+    linguagem               92.9%
+    estrelas               100.0%
+    forks                  100.0%
+    licenca                 83.1%
+    readme                  98.7%
+
+--- sourceforge -----------------------------------------------
+Paginas de projeto:            26000 (meta 26000)
+Paginas baixadas:              26956
+URLs conhecidas:               74243
+URLs na fila:                  47287
+Resultado das URLs visitadas:
+    paginas de projeto salvas        26000
+    listagens e sitemaps             883
+    erros HTTP (404 etc.)            40
+    redirecionamentos                30
+    descartadas: duplicadas          3
+Codigos HTTP: 200: 26886, 404: 40, 301: 30
+Preenchimento dos campos (% dos projetos):
+    nome                   100.0%
+    descricao              100.0%
+    resumo                  42.2%
+    categorias              90.7%
+    licenca                 85.1%
+    linguagem               84.5%
+    downloads_semana       100.0%
+    nota                    23.4%
+    num_avaliacoes          23.4%
+    ultima_atualizacao     100.0%
+
+--- tamanho em disco -------------------------------------------
+HTML bruto (gzip):             2.4 GB em 61 blocos
+Banco SQLite:                  337.2 MB
+projetos.jsonl:                 233.0 MB
+Total:                         2.9 GB
+================================================================

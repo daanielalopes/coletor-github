@@ -1,0 +1,111 @@
+Arquivo: data\coletor.log (72622 linhas)
+
+=== Primeiras 20 linhas ===
+2026-09-30 20:53:21 INFO [MainThread] [github] 1501 seeds novas na fila (0 ja conhecidas). Fila: 1501 URLs. Projetos: 0.
+2026-09-30 20:53:21 INFO [MainThread] [sourceforge] 380 seeds novas na fila (0 ja conhecidas). Fila: 380 URLs. Projetos: 0.
+2026-09-30 20:53:21 INFO [MainThread] Inicio da coleta. Meta: 50 paginas de projeto por site. Profundidade maxima: sem limite. Espera minima: 1.0s.
+2026-09-30 20:53:21 INFO [sourceforge] robots.txt de https://sourceforge.net carregado (5837 bytes). Crawl-delay: None.
+2026-09-30 20:53:21 INFO [sourceforge] 2 sitemaps do robots.txt colocados na fila.
+2026-09-30 20:53:21 INFO [github] robots.txt de https://github.com carregado (14181 bytes). Crawl-delay: None.
+2026-09-30 20:53:22 INFO [github] listing https://github.com/topics | 24 links aceitos, 16 novos
+2026-09-30 20:53:23 INFO [sourceforge] listing https://sourceforge.net/directory/ | 180 links aceitos, 157 novos
+2026-09-30 20:53:24 INFO [github] listing https://github.com/topics/python | 190 links aceitos, 169 novos
+2026-09-30 20:53:24 INFO [sourceforge] PROJETO 1/50 https://sourceforge.net/projects/mingw/ | +30 links novos
+2026-09-30 20:53:25 INFO [github] PROJETO 1/50 https://github.com/donnemartin/system-design-primer | +9 links novos
+2026-09-30 20:53:25 INFO [sourceforge] PROJETO 2/50 https://sourceforge.net/projects/corefonts/ | +6 links novos
+2026-09-30 20:53:26 INFO [github] PROJETO 2/50 https://github.com/vinta/awesome-python | +483 links novos
+2026-09-30 20:53:26 INFO [sourceforge] PROJETO 3/50 https://sourceforge.net/projects/orphamielautoclicker/ | +8 links novos
+2026-09-30 20:53:26 INFO [github] PROJETO 3/50 https://github.com/practical-tutorials/project-based-learning | +11 links novos
+2026-09-30 20:53:27 INFO [sourceforge] PROJETO 4/50 https://sourceforge.net/projects/qbittorrent/ | +12 links novos
+2026-09-30 20:53:28 INFO [github] PROJETO 4/50 https://github.com/TheAlgorithms/Python | +0 links novos
+2026-09-30 20:53:28 INFO [sourceforge] PROJETO 5/50 https://sourceforge.net/projects/winscp/ | +19 links novos
+2026-09-30 20:53:28 INFO [github] PROJETO 5/50 https://github.com/tensorflow/tensorflow | +3 links novos
+2026-09-30 20:53:29 INFO [sourceforge] PROJETO 6/50 https://sourceforge.net/projects/portableapps/ | +18 links novos
+
+=== Eventos principais (inicio, robots.txt, seeds, metas, fim) ===
+2026-09-30 20:53:21 INFO [MainThread] [github] 1501 seeds novas na fila (0 ja conhecidas). Fila: 1501 URLs. Projetos: 0.
+2026-09-30 20:53:21 INFO [MainThread] [sourceforge] 380 seeds novas na fila (0 ja conhecidas). Fila: 380 URLs. Projetos: 0.
+2026-09-30 20:53:21 INFO [MainThread] Inicio da coleta. Meta: 50 paginas de projeto por site. Profundidade maxima: sem limite. Espera minima: 1.0s.
+2026-09-30 20:53:21 INFO [sourceforge] robots.txt de https://sourceforge.net carregado (5837 bytes). Crawl-delay: None.
+2026-09-30 20:53:21 INFO [sourceforge] 2 sitemaps do robots.txt colocados na fila.
+2026-09-30 20:53:21 INFO [github] robots.txt de https://github.com carregado (14181 bytes). Crawl-delay: None.
+2026-09-30 20:54:17 INFO [github] Meta atingida: 50 paginas de projeto.
+2026-09-30 20:54:17 INFO [sourceforge] Meta atingida: 50 paginas de projeto.
+2026-09-30 20:54:18 INFO [MainThread] Coleta encerrada apos 57 s.
+2026-09-30 20:54:18 INFO [MainThread] 100 projetos exportados para data\projetos.jsonl
+2026-09-30 20:57:06 INFO [MainThread] [github] 0 seeds novas na fila (1501 ja conhecidas). Fila: 2779 URLs. Projetos: 50.
+2026-09-30 20:57:06 INFO [MainThread] [sourceforge] 0 seeds novas na fila (380 ja conhecidas). Fila: 1369 URLs. Projetos: 50.
+2026-09-30 20:57:06 INFO [MainThread] Inicio da coleta. Meta: 26000 paginas de projeto por site. Profundidade maxima: sem limite. Espera minima: 1.0s.
+2026-09-30 20:57:06 INFO [github] robots.txt de https://github.com carregado (14181 bytes). Crawl-delay: None.
+2026-09-30 20:57:06 INFO [sourceforge] robots.txt de https://sourceforge.net carregado (5837 bytes). Crawl-delay: None.
+2026-10-01 06:44:34 WARNING [MainThread] Interrupcao pedida. Terminando a pagina atual de cada site...
+2026-10-01 06:44:35 INFO [MainThread] Coleta encerrada apos 35249 s.
+2026-10-01 06:44:38 INFO [MainThread] 33081 projetos exportados para data\projetos.jsonl
+2026-10-01 07:05:03 INFO [MainThread] [github] 0 seeds novas na fila (1501 ja conhecidas). Fila: 117578 URLs. Projetos: 17789.
+2026-10-01 07:05:05 INFO [MainThread] [sourceforge] 0 seeds novas na fila (380 ja conhecidas). Fila: 42110 URLs. Projetos: 15292.
+2026-10-01 07:05:05 INFO [MainThread] Inicio da coleta. Meta: 26000 paginas de projeto por site. Profundidade maxima: sem limite. Espera minima: 1.0s.
+2026-10-01 07:05:07 INFO [github] robots.txt de https://github.com carregado (14181 bytes). Crawl-delay: None.
+2026-10-01 07:05:07 INFO [sourceforge] robots.txt de https://sourceforge.net carregado (5837 bytes). Crawl-delay: None.
+2026-10-01 09:55:07 INFO [github] Meta atingida: 26000 paginas de projeto.
+2026-10-01 10:12:31 INFO [sourceforge] Meta atingida: 26000 paginas de projeto.
+2026-10-01 10:12:31 INFO [MainThread] Coleta encerrada apos 11246 s.
+2026-10-01 10:14:05 INFO [MainThread] 52000 projetos exportados para data\projetos.jsonl
+
+=== 40 linhas seguidas do meio da coleta (a partir da linha 36312) ===
+2026-10-01 03:18:26 INFO [github] listing https://github.com/topics/android?page=14&page=15&page=16 | 140 links aceitos, 1 novos
+2026-10-01 03:18:27 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/librewolf.mirror/
+2026-10-01 03:18:27 INFO [github] listing https://github.com/topics/docker?page=14&page=15&page=16 | 231 links aceitos, 1 novos
+2026-10-01 03:18:28 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/edocias/
+2026-10-01 03:18:28 INFO [github] listing https://github.com/topics/react?page=14&page=15&page=16 | 215 links aceitos, 1 novos
+2026-10-01 03:18:29 INFO [sourceforge] 302 redirecionada https://sourceforge.net/projects/rum.mirror/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:30 INFO [sourceforge] 302 redirecionada https://sourceforge.net/projects/riot-search.mirror/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:30 INFO [github] listing https://github.com/topics/nodejs?page=14&page=15&page=16 | 203 links aceitos, 1 novos
+2026-10-01 03:18:31 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/textseek/
+2026-10-01 03:18:31 INFO [github] listing https://github.com/topics/deep-learning?page=14&page=15&page=16 | 146 links aceitos, 1 novos
+2026-10-01 03:18:32 INFO [sourceforge] 302 redirecionada https://sourceforge.net/projects/codexcavator/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:32 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/user-interface-ui/python/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:32 INFO [sourceforge] Progresso: 14400 paginas baixadas nesta execucao, 9989/26000 projetos, fila com 32842 URLs.
+2026-10-01 03:18:33 INFO [github] listing https://github.com/topics/security?page=14&page=15&page=16 | 173 links aceitos, 1 novos
+2026-10-01 03:18:34 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/ai-image-generators/python/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:34 INFO [github] listing https://github.com/topics/database?page=14&page=15&page=16 | 200 links aceitos, 1 novos
+2026-10-01 03:18:35 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/stable-diffusion-web-ui.mirror/
+2026-10-01 03:18:35 INFO [github] listing https://github.com/topics/kubernetes?page=14&page=15&page=16 | 166 links aceitos, 1 novos
+2026-10-01 03:18:36 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/comfyui-wanvideowrapper.mirror/
+2026-10-01 03:18:36 INFO [github] listing https://github.com/topics/api?page=14&page=15&page=16 | 201 links aceitos, 1 novos
+2026-10-01 03:18:37 INFO [sourceforge] 302 redirecionada https://sourceforge.net/projects/diffusion-webui-colab.mirror/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:37 INFO [github] listing https://github.com/topics/cli?page=14&page=15&page=16 | 180 links aceitos, 1 novos
+2026-10-01 03:18:38 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/stable-diffusion-webui.mirror/
+2026-10-01 03:18:38 INFO [github] listing https://github.com/topics/game-engine?page=14&page=15&page=16 | 155 links aceitos, 1 novos
+2026-10-01 03:18:38 WARNING [github] HTTP 429 em https://github.com/topics/swift?page=14&page=15&page=16. Esperando 5s antes da tentativa 2.
+2026-10-01 03:18:39 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/fastsd-cpu.mirror/
+2026-10-01 03:18:40 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/speech-recognition/c++/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:41 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/raspberry-pi/c++/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:42 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/llm-inference/c++/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:42 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/speech-recognition/c/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:44 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/raspberry-pi/c/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:44 WARNING [github] HTTP 429 em https://github.com/topics/swift?page=14&page=15&page=16. Esperando 10s antes da tentativa 3.
+2026-10-01 03:18:45 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/llm-inference/c/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:46 INFO [sourceforge] 302 redirecionada https://sourceforge.net/projects/ctransformers.mirror/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:47 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/whisperlive.mirror/
+2026-10-01 03:18:48 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/insanely-fast-whisper.mirror/
+2026-10-01 03:18:49 INFO [sourceforge] Descartada (soft-404): https://sourceforge.net/projects/koboldcpp/
+2026-10-01 03:18:50 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/large-language-models-llm/c/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:51 INFO [sourceforge] 302 redirecionada https://sourceforge.net/directory/large-language-models-llm/go/ -> https://sourceforge.net/ (ignorada)
+2026-10-01 03:18:52 INFO [sourceforge] 302 redirecionada https://sourceforge.net/projects/ollama-kit-v1-1/ -> https://sourceforge.net/ (ignorada)
+
+=== Ultimas 15 linhas ===
+2026-10-01 10:12:20 INFO [sourceforge] PROJETO 25989/26000 https://sourceforge.net/projects/ilcomparisons/ | +0 links novos
+2026-10-01 10:12:21 INFO [sourceforge] PROJETO 25990/26000 https://sourceforge.net/projects/jctc/ | +0 links novos
+2026-10-01 10:12:22 INFO [sourceforge] PROJETO 25991/26000 https://sourceforge.net/projects/bool-goat/ | +1 links novos
+2026-10-01 10:12:23 INFO [sourceforge] PROJETO 25992/26000 https://sourceforge.net/projects/miniplaner/ | +1 links novos
+2026-10-01 10:12:24 INFO [sourceforge] PROJETO 25993/26000 https://sourceforge.net/projects/ops-strawberry/ | +0 links novos
+2026-10-01 10:12:25 INFO [sourceforge] PROJETO 25994/26000 https://sourceforge.net/projects/omapi/ | +1 links novos
+2026-10-01 10:12:26 INFO [sourceforge] PROJETO 25995/26000 https://sourceforge.net/projects/fieldtrip/ | +0 links novos
+2026-10-01 10:12:27 INFO [sourceforge] PROJETO 25996/26000 https://sourceforge.net/projects/py-sms/ | +0 links novos
+2026-10-01 10:12:28 INFO [sourceforge] PROJETO 25997/26000 https://sourceforge.net/projects/pacercms/ | +2 links novos
+2026-10-01 10:12:29 INFO [sourceforge] PROJETO 25998/26000 https://sourceforge.net/projects/tonks/ | +1 links novos
+2026-10-01 10:12:30 INFO [sourceforge] PROJETO 25999/26000 https://sourceforge.net/projects/brflog/ | +0 links novos
+2026-10-01 10:12:31 INFO [sourceforge] PROJETO 26000/26000 https://sourceforge.net/projects/os2linux/ | +2 links novos
+2026-10-01 10:12:31 INFO [sourceforge] Meta atingida: 26000 paginas de projeto.
+2026-10-01 10:12:31 INFO [MainThread] Coleta encerrada apos 11246 s.
+2026-10-01 10:14:05 INFO [MainThread] 52000 projetos exportados para data\projetos.jsonl

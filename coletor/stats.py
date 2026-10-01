@@ -9,7 +9,7 @@ extraído, para conferir a qualidade da extração.
 import os
 from typing import List
 
-from .storage import EXPORT_FIELDS, Storage
+from .storage import EXPORT_FIELDS, LIST_COLUMNS, Storage
 
 RESULT_LABELS = {
     "projeto": "paginas de projeto salvas",
@@ -105,14 +105,25 @@ def report(storage: Storage, cfg) -> str:
         if codes:
             add("Codigos HTTP: " + ", ".join(f"{c[0]}: {c[1]}" for c in codes))
         if n_proj:
+            # Uma passada só pela tabela para todos os campos, e com o total no
+            # mesmo instante (antes, com a coleta rodando, dava mais de 100%).
+            # octet_length() mede o texto sem carregá-lo inteiro: o README pode
+            # ter 100 mil caracteres, e carregar todos deixava a consulta lenta
+            # com o banco fora da memória.
+            fields = [f for f in EXPORT_FIELDS.get(site, [])
+                      if f not in ("site", "url", "coletado_em", "status_http")]
+            exprs = []
+            for field in fields:
+                cond = f"octet_length({field}) > 0"
+                if field in LIST_COLUMNS:
+                    cond += f" AND {field} != '[]'"
+                exprs.append(f"SUM(CASE WHEN {cond} THEN 1 ELSE 0 END)")
+            row = storage.query(
+                f"SELECT COUNT(*), {', '.join(exprs)} FROM projetos WHERE site = ?", (site,))[0]
+            total = row[0] or 1
             add("Preenchimento dos campos (% dos projetos):")
-            for field in EXPORT_FIELDS.get(site, []):
-                if field in ("site", "url", "coletado_em", "status_http"):
-                    continue
-                filled = storage.query(
-                    f"SELECT COUNT(*) FROM projetos WHERE site = ? AND {field} IS NOT NULL "
-                    f"AND {field} != '' AND {field} != '[]'", (site,))[0][0]
-                add(f"    {field:22} {100.0 * filled / n_proj:5.1f}%")
+            for field, filled in zip(fields, row[1:]):
+                add(f"    {field:22} {100.0 * (filled or 0) / total:5.1f}%")
 
     out = cfg.output_dir
     html_size = _dir_size(os.path.join(out, cfg.raw_dir))

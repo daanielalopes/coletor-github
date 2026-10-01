@@ -136,6 +136,20 @@ guarda o arquivo, a posição e o tamanho de cada uma:
     sqlite3 data/coletor.db "SELECT site, COUNT(*) FROM projetos GROUP BY site;"
     sqlite3 data/coletor.db "SELECT resultado, COUNT(*) FROM visitadas GROUP BY resultado;"
 
+## 🧾 Evidências da coleta
+
+A pasta `evidencias/` guarda provas da coleta completa (52.000 páginas de
+projeto, 26.000 de cada site), geradas a partir de `data/` com:
+
+    python gerar_evidencias.py
+
+- `estatisticas.txt` e `resumo.json`: números finais da coleta;
+- `urls_coletadas.csv`: as 52.000 URLs de projeto coletadas, com data e hora;
+- `amostra_projetos.jsonl`: 50 projetos de cada site com todos os campos;
+- `projetos_por_hora.csv`: páginas baixadas e projetos salvos por hora;
+- `trechos_do_log.txt`: início, metas atingidas e fim de cada execução;
+- `sha256.txt`: hash do `projetos.jsonl`, para conferir o arquivo completo.
+
 ## 📁 Organização dos arquivos
 
     coletor/config.py      configurações: boas maneiras, parada, seeds, armazenamento
@@ -148,6 +162,7 @@ guarda o arquivo, a posição e o tamanho de cada uma:
     coletor/crawler.py     laço do coletor, uma thread por domínio
     coletor/stats.py       estatísticas da coleta
     run_coletor.py         script principal
+    gerar_evidencias.py    gera a pasta evidencias/ a partir de data/
 
 As decisões de projeto estão justificadas no relatório
 (`RELATORIO_PARTE1_COLETOR.md`).

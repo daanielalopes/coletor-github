@@ -562,40 +562,58 @@ ser feita em várias sessões.
 
 ### 3.4 Números da coleta completa
 
-Obtidos com `python run_coletor.py --stats` depois da coleta completa.
+Obtidos com `python run_coletor.py --stats` depois da coleta completa
+(`--target 26000`, ou seja, 26 mil páginas de projeto por site). A coleta
+aconteceu entre 30/09 às 20:53 e 01/10 às 10:12 e levou mais que a estimativa
+de 8 horas da seção 3.3 por causa das ocorrências descritas na seção 3.5.
 
 | Medida | Valor |
 |--------|-------|
-| Páginas baixadas (total) | _preencher_ |
-| Páginas de projeto do GitHub | _preencher_ |
-| Páginas de projeto do SourceForge | _preencher_ |
-| **Total de documentos** | _preencher_ |
-| Listagens e sitemaps | _preencher_ |
-| Redirecionamentos | _preencher_ |
-| Descartadas por duplicação | _preencher_ |
-| Descartadas por soft-404 | _preencher_ |
-| Erros HTTP (404 etc.) | _preencher_ |
-| Erros de rede e timeout | _preencher_ |
-| Bloqueadas pelo robots.txt | _preencher_ |
-| URLs conhecidas ao final | _preencher_ |
-| Tempo total de coleta | _preencher_ |
-| Taxa média (páginas por hora) | _preencher_ |
-| HTML bruto em disco (gzip) | _preencher_ |
-| Banco SQLite | _preencher_ |
-| `projetos.jsonl` | _preencher_ |
+| Páginas de projeto do GitHub | 26.000 |
+| Páginas de projeto do SourceForge | 26.000 |
+| **Total de documentos** | **52.000** |
+| Páginas baixadas registradas | 60.511 (GitHub 33.555, SourceForge 26.956) |
+| Pedidos feitos ao todo (estimativa) | cerca de 70.900, contando as 10.394 tentativas feitas durante a pane do SourceForge, que voltaram para a fila |
+| Listagens e sitemaps | 8.342 (GitHub 7.459, dos quais 4.722 inúteis por causa do erro de paginação; SourceForge 883) |
+| Redirecionamentos | 42 |
+| Descartadas por duplicação | 5 |
+| Descartadas por soft-404 | 0 no registro final (as 4.168 da pane voltaram para a fila e foram coletadas depois) |
+| Erros HTTP | 122 (62 respostas 429 do GitHub na primeira execução e 60 erros 404) |
+| Erros de rede e timeout | 0 (os poucos que aconteceram deram certo numa nova tentativa) |
+| Bloqueadas pelo robots.txt | 3 (repositórios chamados `download`, proibidos pela regra `/*/download`) |
+| URLs conhecidas ao final | 266.676 |
+| URLs ainda na fila ao final | 204.874 |
+| Tempo total de coleta | 12h55min52s em 3 execuções (teste de 57 s, 9h47min e 3h07min) |
+| Taxa média | 4.679 páginas por hora, somando os dois sites |
+| Volume baixado (sem compressão) | 15,2 GB |
+| HTML bruto em disco (gzip) | 2,4 GB em 61 blocos |
+| Banco SQLite | cerca de 340 MB |
+| `projetos.jsonl` | 233 MB |
+
+Os dois números passam de 50 mil: 52.000 páginas de projeto (os documentos do
+sistema) e 60.511 páginas baixadas no total.
 
 **Preenchimento dos campos (% dos projetos):**
 
 | GitHub | % | SourceForge | % |
 |--------|---|-------------|---|
-| descrição | _preencher_ | descrição | _preencher_ |
-| tópicos | _preencher_ | resumo | _preencher_ |
-| linguagem | _preencher_ | categorias | _preencher_ |
-| estrelas | _preencher_ | licença | _preencher_ |
-| forks | _preencher_ | linguagem | _preencher_ |
-| licença | _preencher_ | downloads | _preencher_ |
-| README | _preencher_ | nota | _preencher_ |
-| | | última atualização | _preencher_ |
+| nome, dono | 100,0 | nome, descrição | 100,0 |
+| descrição | 99,5 | resumo | 42,2 |
+| tópicos | 98,0 | categorias | 90,7 |
+| linguagem | 92,9 | licença | 85,1 |
+| estrelas, forks | 100,0 | linguagem | 84,5 |
+| licença | 83,1 | downloads | 100,0 |
+| README | 98,7 | nota | 23,4 |
+| | | última atualização | 100,0 |
+
+No GitHub quase todos os campos ficaram acima de 90%. A licença fica abaixo
+porque muitos repositórios não têm arquivo de licença. No SourceForge, resumo e
+nota ficaram baixos porque a maior parte dos projetos veio dos sitemaps, que
+incluem a cauda longa de projetos pequenos e inativos: muitos não têm resumo e
+nunca receberam avaliação. Conferimos no HTML salvo que esses campos realmente
+não existem nessas páginas.
+
+As provas da coleta estão na pasta `evidencias/` do repositório (seção 3.6).
 
 ### 3.5 Ocorrências durante a coleta completa
 
@@ -646,6 +664,23 @@ seção 2.11.
 **Lição:** o total de páginas baixadas continuava subindo normalmente durante
 os três problemas. Foi a contagem por hora, separando páginas baixadas de
 projetos salvos, que mostrou que a coleta estava trabalhando sem render.
+
+
+### 3.6 Evidências da coleta
+
+Os dados completos têm cerca de 3 GB e não cabem no GitHub. A pasta
+`evidencias/` do repositório tem arquivos pequenos, gerados direto do banco, do
+log e do arquivo final pelo script `gerar_evidencias.py`:
+
+| Arquivo | Conteúdo |
+|---------|----------|
+| `estatisticas.txt` | saída do comando `--stats` ao final da coleta |
+| `resumo.json` | os mesmos números em formato estruturado, com as execuções, os resultados e os códigos HTTP por site |
+| `urls_coletadas.csv` | as 52.000 URLs de projeto coletadas, com data e hora da coleta e código HTTP; qualquer uma pode ser aberta no navegador |
+| `amostra_projetos.jsonl` | 50 projetos de cada site, espaçados ao longo da coleta, com todos os campos extraídos |
+| `projetos_por_hora.csv` | páginas baixadas e projetos salvos por hora, em cada site |
+| `trechos_do_log.txt` | início e fim de cada execução, leitura do robots.txt, metas atingidas e um trecho do meio da coleta |
+| `sha256.txt` | hash SHA-256 do `projetos.jsonl`, para conferir que o arquivo entregue é o mesmo da coleta |
 
 ---
 
