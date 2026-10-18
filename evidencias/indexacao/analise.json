@@ -1,0 +1,31 @@
+{
+  "10000_docs_processos_1": {
+    "documentos": 10000,
+    "tempo_s": 41.59
+  },
+  "10000_docs_processos_8": {
+    "documentos": 10000,
+    "tempo_s": 16.99
+  },
+  "stop1_stem1": {
+    "documentos": 52000,
+    "tempo_s": 67.82,
+    "cache_bytes": 192382266
+  },
+  "stop0_stem1": {
+    "documentos": 52000,
+    "tempo_s": 68.19,
+    "cache_bytes": 231983189
+  },
+  "stop1_stem0": {
+    "documentos": 52000,
+    "tempo_s": 53.6,
+    "cache_bytes": 202340610
+  },
+  "stop0_stem0": {
+    "documentos": 52000,
+    "tempo_s": 53.93,
+    "cache_bytes": 242020361
+  },
+  "nucleos": 8
+}

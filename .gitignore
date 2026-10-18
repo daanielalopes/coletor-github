@@ -15,3 +15,5 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+# ...exceto o registro dos experimentos da indexação, citado no relatório
+!evidencias/indexacao/experimentos.log

@@ -1,0 +1,50 @@
+{
+  "etapas": [
+    {
+      "etapa": "bruto",
+      "tokens": 32801954,
+      "vocabulario": 2297831,
+      "tokens_github": 31138685,
+      "tokens_sourceforge": 1663269,
+      "vocabulario_github": 2232424,
+      "vocabulario_sourceforge": 147082
+    },
+    {
+      "etapa": "tokens",
+      "tokens": 35064058,
+      "vocabulario": 981255,
+      "tokens_github": 33378565,
+      "tokens_sourceforge": 1685493,
+      "vocabulario_github": 947726,
+      "vocabulario_sourceforge": 86810
+    },
+    {
+      "etapa": "normalizados",
+      "tokens": 33436005,
+      "vocabulario": 821248,
+      "tokens_github": 31816990,
+      "tokens_sourceforge": 1619015,
+      "vocabulario_github": 794787,
+      "vocabulario_sourceforge": 68437
+    },
+    {
+      "etapa": "sem_stopwords",
+      "tokens": 25575077,
+      "vocabulario": 821022,
+      "tokens_github": 24418775,
+      "tokens_sourceforge": 1156302,
+      "vocabulario_github": 794561,
+      "vocabulario_sourceforge": 68240
+    },
+    {
+      "etapa": "stems",
+      "tokens": 25575077,
+      "vocabulario": 779148,
+      "tokens_github": 24418775,
+      "tokens_sourceforge": 1156302,
+      "vocabulario_github": 755163,
+      "vocabulario_sourceforge": 57001
+    }
+  ],
+  "tempo_s": 339.9
+}

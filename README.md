@@ -166,3 +166,84 @@ projeto, 26.000 de cada site), geradas a partir de `data/` com:
 
 As decisões de projeto estão justificadas no relatório
 (`RELATORIO_PARTE1_COLETOR.md`).
+
+---
+
+# 🔎 Parte 2: Indexador
+
+O indexador lê `data/projetos.jsonl` (a saída do coletor), pré-processa o
+texto e grava um índice invertido em `data/indice/`. **Não usa banco de
+dados**: o índice é um conjunto de arquivos binários e de texto escritos pelo
+próprio programa (o SQLite continua sendo usado só pelo coletor, na Parte 1).
+
+Pipeline: limpeza (URLs, HTML, emojis, caracteres invisíveis) → análise
+léxica (termos técnicos como c++ e c#, compostos, camelCase no nome,
+bigramas para chinês/japonês/coreano, minúsculas e acentos) → stopwords
+(inglês e português) → stemming Snowball → índice invertido SPIMI com
+postings comprimidas (gaps + Variable Byte), posições e frequência por campo.
+
+## ▶️ Execução
+
+    pip install -r requirements.txt
+
+    # índice completo (cerca de 1min40s numa máquina com 8 núcleos)
+    python run_indexador.py
+
+    # teste rápido com os 2.000 primeiros projetos
+    python run_indexador.py --limite 2000 --saida data/indice_teste
+
+    # estatísticas do índice
+    python run_indexador.py --stats
+
+    # consultas de validação
+    python buscar.py "password manager linux"
+    python buscar.py --termo "c++"
+
+    # testes (comparam o índice com um cálculo por força bruta)
+    python -m unittest discover -s tests -v
+
+    # experimentos do relatório (cerca de 1 hora)
+    python experimentos_indexacao.py tudo
+
+**Opções do indexador**
+
+    --granularidade G       documento, campo (padrão) ou chunk
+    --tamanho-chunk N       termos por chunk do README (padrão 256)
+    --sobreposicao N        termos repetidos entre chunks vizinhos (padrão 0)
+    --sem-posicoes          não guardar as posições
+    --sem-stopwords         não remover stopwords
+    --sem-stemming          não aplicar stemming
+    --documentos-por-bloco  tamanho do bloco SPIMI (padrão 10000)
+    --particoes N           buckets do índice final (padrão 16)
+    --processos N           processos da análise (0 = todos os núcleos)
+    --limite N              indexar só os N primeiros projetos
+
+## 💾 Arquivos do índice (`data/indice/`)
+
+    postings_XXX.bin   unidades e frequências de cada termo (gaps + VB)
+    posicoes_XXX.bin   posições de cada ocorrência (gaps + VB)
+    lexico_XXX.tsv     termo, df, cf e onde estão as listas do termo
+    documentos.jsonl   metadados de cada projeto (url, site, linguagem...)
+    comprimentos.bin   número de termos de cada unidade em cada campo
+    unidades.bin       projeto de cada unidade (só na granularidade chunk)
+    meta.json          configuração, estatísticas, tempos e tamanhos
+
+## 📁 Organização dos arquivos
+
+    indexador/config.py        hiperparâmetros da representação
+    indexador/limpeza.py       limpeza do texto
+    indexador/analisador.py    análise léxica, stopwords e stemming
+    indexador/stopwords.py     listas de stopwords (inglês e português)
+    indexador/documentos.py    leitura do JSONL e montagem dos campos
+    indexador/vbyte.py         compressão Variable Byte
+    indexador/construtor.py    construção SPIMI, fusão e partições
+    indexador/indice.py        leitura do índice (léxico, postings, posições)
+    indexador/busca.py         BM25/BM25F provisório, para validar o índice
+    run_indexador.py           script principal
+    buscar.py                  consultas pela linha de comando
+    experimentos_indexacao.py  experimentos e gráficos do relatório
+    tests/test_indexador.py    testes
+
+As decisões e os experimentos estão no relatório
+(`RELATORIO_PARTE2_INDEXACAO.md`), e os resultados medidos e os gráficos em
+`evidencias/indexacao/`.

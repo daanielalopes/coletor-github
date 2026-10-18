@@ -1,0 +1,30 @@
+================================================================
+ESTATISTICAS DO INDICE
+================================================================
+Granularidade:                 campo
+Stopwords / stemming / posicoes: True / True / True
+Documentos (projetos):         52000
+Unidades indexadas:            52000
+Vocabulario (termos):          779148
+Postings (pares termo-unidade): 9783738
+Ocorrencias (tokens):          25575077
+Maior lista (df):              30228
+Termos por campo:              nome 184389, descricao 1261825, rotulos 459461, readme 23669402
+Comprimento medio da unidade:  nome 3.5, descricao 24.3, rotulos 8.8, readme 455.2
+
+Blocos SPIMI:                  6 de 10000 documentos
+Tempo analise + blocos:        90.8 s
+Tempo da fusao:                7.0 s
+Tempo total:                   97.8 s
+Memoria de pico (principal):   216 MB (fim dos blocos 210 MB, fim da fusao 171 MB)
+
+--- tamanho em disco -------------------------------------------
+postings:                           31.9 MB
+posicoes:                           34.9 MB
+lexico:                             25.1 MB
+documentos:                         26.1 MB
+comprimentos:                        0.8 MB
+Indice invertido (3 primeiros):     91.8 MB  em 16 particao(oes)
+Listas sem compressao:             183.6 MB
+Total:                             118.7 MB
+================================================================
