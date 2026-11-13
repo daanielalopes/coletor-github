@@ -31,9 +31,27 @@ guardado num cache: o vocabulário é muito menor que o número de tokens.
 
 import re
 import unicodedata
+import warnings
 from typing import Dict, Iterator, List, Optional
 
-import snowballstemmer
+try:
+    import snowballstemmer   # pacote externo, mais rápido (opcional)
+
+    def _criar_stemmer():
+        return snowballstemmer.stemmer("english")
+except ImportError:
+    # Sem o pacote, usamos o Porter2 em Python puro que vem no projeto, para
+    # que o sistema rode numa máquina só com a biblioteca padrão. O resultado
+    # é o mesmo algoritmo (Porter2/English Snowball).
+    from . import porter2
+
+    def _criar_stemmer():
+        warnings.warn(
+            "snowballstemmer não encontrado; usando o Porter2 interno "
+            "(indexador/porter2.py). Para o stemmer original: pip install snowballstemmer.",
+            RuntimeWarning, stacklevel=2,
+        )
+        return porter2.stemmer("english")
 
 from .limpeza import limpar
 from .stopwords import STOPWORDS
@@ -76,7 +94,7 @@ class Analisador:
     def __init__(self, remover_stopwords: bool = True, stemming: bool = True,
                  tamanho_min: int = 2, tamanho_max: int = 25, max_digitos: int = 4):
         self.remover_stopwords = remover_stopwords
-        self.stemmer = snowballstemmer.stemmer("english") if stemming else None
+        self.stemmer = _criar_stemmer() if stemming else None
         self.tamanho_min = tamanho_min
         self.tamanho_max = tamanho_max
         self.max_digitos = max_digitos

@@ -247,3 +247,99 @@ postings comprimidas (gaps + Variable Byte), posições e frequência por campo.
 As decisões e os experimentos estão no relatório
 (`RELATORIO_PARTE2_INDEXACAO.md`), e os resultados medidos e os gráficos em
 `evidencias/indexacao/`.
+
+---
+
+# 🖥️ Parte 3: Recuperação, ranking e interface
+
+A Parte 3 fecha o sistema: a **recuperação** da informação a partir do índice
+invertido, o **ranking** dos documentos por relevância (BM25/BM25F) e a
+**interface gráfica** para o usuário.
+
+- **Recuperação:** `indexador/indice.py` lê o índice do disco. Para cada termo
+  da consulta, carrega só a partição do léxico daquele termo (hash) e lê do
+  arquivo de postings, com `seek`, apenas os bytes daquele termo (gaps +
+  Variable Byte). **Não há varredura dos documentos**: a busca é feita pelo
+  índice invertido.
+- **Ranking:** `indexador/busca.py` (classe `Buscador`) ordena por BM25/BM25F.
+  No esquema por campo (padrão), cada campo (nome, descrição, rótulos, README)
+  tem um peso e é normalizado pelo seu comprimento antes da saturação (BM25F).
+- **Interface:** `interface/app.py` é um servidor web escrito **só com a
+  biblioteca padrão** (sem Flask/Django). Ele usa exatamente as classes
+  `Indice` e `Buscador` — a mesma busca da linha de comando, sem nenhuma busca
+  própria ou simplificada.
+
+## ▶️ Como executar o sistema completo
+
+Tudo pode ser feito com **Python 3.9+ e a biblioteca padrão**. As bibliotecas
+externas são opcionais (ver "Instalação sem internet" abaixo).
+
+    # 1. (Opcional) coletar os dados. Se você não quiser rodar a coleta longa,
+    #    já existe uma amostra pronta em evidencias/amostra_projetos.jsonl.
+    python run_coletor.py --target 25000        # coleta completa
+    #    ou, para testar o sistema de ponta a ponta com a amostra:
+    mkdir -p data
+    cp evidencias/amostra_projetos.jsonl data/projetos.jsonl
+
+    # 2. Construir o índice invertido
+    python run_indexador.py --processos 1        # gera data/indice
+
+    # 3a. Buscar pela linha de comando
+    python buscar.py "machine learning" --k 5
+
+    # 3b. Buscar pela interface gráfica (abra http://localhost:8000)
+    python -m interface.app --indice data/indice --porta 8000
+
+A interface mostra, para cada consulta: os resultados ranqueados com nota,
+site, linguagem, licença e um trecho; os termos em que a consulta foi
+analisada; e, clicando num termo, a **entrada dele no índice invertido**
+(partição, df, cf e as primeiras postings lidas do disco) — a prova visível de
+que a interface consulta o índice, e não uma busca à parte.
+
+![Interface web de busca](evidencias/interface/busca_machine_learning.png)
+
+## 🧪 Testes
+
+    python -m unittest discover -s tests -v
+
+- `tests/test_indexador.py`: compara o índice construído com um cálculo por
+  força bruta, termo a termo (postings, posições, df e cf), nas três
+  granularidades;
+- `tests/test_busca.py`: verifica o ranking BM25/BM25F (recuperação só de quem
+  tem o termo, peso de campo, mais ocorrências ranqueia acima, IDF decrescente)
+  e que a **API da interface web devolve exatamente o resultado do `Buscador`**;
+- `tests/test_porter2.py`: confere o stemmer Porter2 interno contra valores de
+  referência do algoritmo e, se o pacote estiver instalado, contra o
+  `snowballstemmer`.
+
+Nesta máquina, a suíte roda em menos de 1 segundo (28 testes).
+
+## 💡 Instalação sem internet (só biblioteca padrão)
+
+O indexador e a busca dependem apenas da **biblioteca padrão do Python**. O
+único pacote externo do indexador, `snowballstemmer` (stemmer de inglês), é
+**opcional**: se ele não estiver instalado, o sistema usa automaticamente o
+Porter2 em Python puro que acompanha o projeto (`indexador/porter2.py`), que
+implementa o mesmo algoritmo. Assim o sistema roda em qualquer máquina só com
+o Python, sem `pip install`. As bibliotecas externas são:
+
+- **coletor** (Parte 1): `requests`, `protego`, `beautifulsoup4`, `lxml` —
+  necessárias só para coletar da internet;
+- **indexador** (Parte 2): `snowballstemmer` (opcional) e `psutil` (opcional,
+  só para medir a memória de pico);
+- **experimentos/gráficos**: `numpy`, `matplotlib` (opcionais).
+
+A interface gráfica (Parte 3) **não tem nenhuma dependência externa**.
+
+## 📁 Organização dos arquivos da Parte 3
+
+    indexador/indice.py        leitura do índice e recuperação (postings/posições)
+    indexador/busca.py         ranking BM25/BM25F (classe Buscador)
+    indexador/porter2.py       stemmer Porter2 em Python puro (alternativa ao pacote)
+    buscar.py                  busca pela linha de comando
+    interface/app.py           interface gráfica web (http.server, sem framework)
+    tests/test_busca.py        testes do ranking e da interface
+    tests/test_porter2.py      testes do stemmer interno
+
+As decisões de projeto da Parte 3 estão no relatório final
+(`RELATORIO_PARTE3_RECUPERACAO.md`).
