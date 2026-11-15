@@ -540,6 +540,7 @@ def build():
     d = rep.doc
 
     # ----------------------------- FOLHA DE ROSTO --------------------------
+    # Espelha o modelo da capa da Parte 1 (PUC Minas), com o ano 2026.
     d.new_page()
     autores = [
         "Camila de Paula Rodrigues",
@@ -548,31 +549,40 @@ def build():
         "Luisa Sapori",
         "Thiago Lacerda Santos Barbosa",
     ]
-    d.y = PAGE_H - MARGIN_T
+    # instituição, no topo
+    d.y = PAGE_H - MARGIN_T - 1.2 * CM
+    rep.center_line("PONTIFÍCIA UNIVERSIDADE CATÓLICA DE MINAS GERAIS",
+                    size=12, bold=True)
+    rep.center_line("INSTITUTO DE CIÊNCIAS EXATAS E INFORMÁTICA", size=12)
+    # autores
+    d.y = PAGE_H * 0.70
     for a in autores:
         rep.center_line(a, size=12)
-    # título ao centro vertical
-    d.y = PAGE_H * 0.55
-    rep.center_line("SISTEMA DE RECUPERAÇÃO DA INFORMAÇÃO", size=14, bold=True)
-    rep.center_line("PARTE 3: RECUPERAÇÃO, RANKING E INTERFACE", size=14, bold=True)
-    rep.vspace(6)
-    rep.center_line("Busca de projetos de software livre (GitHub e SourceForge)",
-                    size=12)
-    # bloco de natureza do trabalho (recuo ABNT à direita)
-    d.y = PAGE_H * 0.33
-    nat = ("Relatório final apresentado como requisito parcial de avaliação da "
-           "disciplina de Recuperação da Informação, referente à terceira etapa "
-           "do trabalho prático.")
-    # parágrafo recuado a partir do meio da página (padrão ABNT)
-    _justified_block(rep, nat, left=MARGIN_L + CONTENT_W*0.5, size=12,
+    # título e subtítulo ao centro
+    d.y = PAGE_H * 0.52
+    rep.center_line("COLETOR GITHUB", size=12, bold=True)
+    rep.vspace(2)
+    rep.center_line("Sistema de Recuperação da Informação: Coletor, Indexação "
+                    "e Recuperação de Repositórios do GitHub", size=12)
+    # natureza do trabalho (bloco recuado à direita, padrão ABNT)
+    d.y = PAGE_H * 0.36
+    nat = ("Trabalho apresentado no curso de graduação da Pontifícia "
+           "Universidade Católica de Minas Gerais, no curso de Sistemas de "
+           "Informação")
+    _justified_block(rep, nat, left=MARGIN_L + CONTENT_W * 0.5, size=12,
+                     leading=SINGLE_LEADING)
+    rep.vspace(SINGLE_LEADING)
+    _justified_block(rep, "Professor: Pedro Felipe Alves de Oliveira",
+                     left=MARGIN_L + CONTENT_W * 0.5, size=12,
                      leading=SINGLE_LEADING)
     # local e data no rodapé
-    d.y = MARGIN_B + 2.2*CM
+    d.y = MARGIN_B + 2.2 * CM
     rep.center_line("Belo Horizonte", size=12)
-    rep.center_line("2025", size=12)
+    rep.center_line("2026", size=12)
 
     # ------------------------------- SUMÁRIO -------------------------------
-    # Reservamos a página do sumário; preenchemos no fim (precisamos das páginas).
+    # Reservamos a página do sumário; preenchemos no fim (precisamos das
+    # páginas de cada seção). As ~27 entradas cabem em uma página A4.
     d.new_page()
     sumario_page_index = len(d.pages) - 1
     sumario_y_start = PAGE_H - MARGIN_T
@@ -584,32 +594,218 @@ def build():
     # 1 INTRODUÇÃO
     rep.heading(1, "1", "INTRODUÇÃO", space_before=False)
     rep.paragraph(
-        "Este relatório descreve a etapa final do sistema de busca de projetos "
-        "de software livre desenvolvido ao longo da disciplina. Enquanto a "
-        "primeira etapa tratou da coleta das páginas e a segunda da construção "
-        "do índice invertido, esta terceira parte documenta a recuperação da "
-        "informação a partir desse índice, o ranqueamento dos documentos por "
-        "relevância e a interface gráfica apresentada ao usuário. O texto "
-        "complementa os relatórios anteriores e consolida as melhorias "
-        "realizadas após a entrega parcial.")
+        "A Recuperação da Informação (RI) tem como objetivo permitir que "
+        "usuários localizem documentos relevantes dentro de grandes coleções "
+        "de dados. Este relatório consolida as três etapas do trabalho prático "
+        "da disciplina, que, em conjunto, constroem um sistema de busca "
+        "vertical sobre projetos de software livre: a coleta das páginas, a "
+        "representação e indexação dos documentos e a recuperação com "
+        "ranqueamento por relevância, apresentada ao usuário por uma interface "
+        "gráfica.")
     rep.paragraph(
         "O sistema é composto por três partes ligadas por arquivos em disco, "
-        "sem banco de dados compartilhado. O coletor baixa o HTML das páginas, "
-        "segue os links e exporta o arquivo projetos.jsonl, com um projeto por "
-        "linha. O indexador lê esse arquivo, pré-processa o texto e grava um "
-        "índice invertido com o método SPIMI, postings comprimidas por gaps e "
-        "Variable Byte, posições e frequência por campo. A recuperação e a "
-        "interface, objeto deste relatório, leem o índice, ordenam os "
-        "documentos por BM25/BM25F e exibem o resultado ao usuário por linha "
-        "de comando e por uma interface gráfica web.")
+        "sem banco de dados compartilhado. O coletor baixa o HTML das páginas "
+        "públicas do GitHub e do SourceForge, segue os links e exporta o "
+        "arquivo projetos.jsonl, com um projeto por linha. O indexador lê esse "
+        "arquivo, pré-processa o texto e grava um índice invertido com o "
+        "método SPIMI, postings comprimidas por gaps e Variable Byte, posições "
+        "e frequência por campo. A recuperação e a interface leem o índice, "
+        "ordenam os documentos por BM25/BM25F e exibem o resultado ao usuário "
+        "por linha de comando e por uma interface gráfica web.")
     rep.paragraph(
         "Todo o código foi escrito em Python. O indexador, a recuperação e a "
         "interface funcionam apenas com a biblioteca padrão da linguagem, o "
         "que simplifica a instalação e permite executar o sistema em qualquer "
-        "máquina que tenha o interpretador, inclusive sem acesso à internet.")
+        "máquina que tenha o interpretador, inclusive sem acesso à internet. O "
+        "texto está organizado em três blocos, correspondentes às três "
+        "entregas: o coletor (seção 2), a representação e indexação (seção 3) "
+        "e a recuperação, o ranqueamento e a interface (seções 4 a 6), "
+        "seguidos da integração entre as partes e da conclusão.")
 
-    # 2 RECUPERAÇÃO PELO ÍNDICE INVERTIDO
-    rep.heading(1, "2", "RECUPERAÇÃO PELO ÍNDICE INVERTIDO")
+    # ====================================================================
+    # PARTE 1 — COLETOR
+    # ====================================================================
+    rep.heading(1, "2", "PARTE 1: COLETA DAS PÁGINAS")
+    rep.paragraph(
+        "A primeira etapa implementa o coletor, responsável por adquirir e "
+        "armazenar os documentos que formam a coleção das fases posteriores. "
+        "Cada documento corresponde a um projeto público, ou seja, um "
+        "repositório do GitHub ou um projeto do SourceForge, com uma parte "
+        "textual, formada por nome, descrição, resumo e README, e campos "
+        "estruturados como linguagem, licença, tópicos, estrelas e número de "
+        "downloads.")
+
+    rep.heading(2, "2.1", "Problema e fonte de dados")
+    rep.paragraph(
+        "O GitHub e o SourceForge estão entre as plataformas de hospedagem de "
+        "projetos de software livre mais conhecidas e se complementam: o "
+        "GitHub reúne a maior parte dos projetos novos e ativos, enquanto o "
+        "SourceForge guarda muitos projetos clássicos e programas prontos para "
+        "baixar. Como os projetos estão distribuídos em mais de uma "
+        "plataforma, encontrar aqueles que atendem a uma necessidade torna-se "
+        "trabalhoso. Surge daí um problema clássico de RI: dada uma "
+        "necessidade de informação em linguagem natural, recuperar as páginas "
+        "de projeto mais relevantes, reunindo em uma única coleção o conteúdo "
+        "de ambas as plataformas. A fonte de dados são as páginas HTML "
+        "públicas de github.com e sourceforge.net, as mesmas que um usuário vê "
+        "no navegador; a coleta não utiliza API, pois cada página é baixada e "
+        "o seu DOM é interpretado pelo próprio coletor.")
+
+    rep.heading(2, "2.2", "Tipo de coletor e arquitetura")
+    rep.paragraph(
+        "O coletor é um crawler de HTML vertical e focado: limita-se ao "
+        "domínio de software livre e, dentro dos dois sites, só segue links "
+        "que levam a páginas de projeto ou de listagem, selecionados pelo "
+        "padrão da URL com expressões regulares. Entre as propriedades de "
+        "coleta discutidas em aula, o projeto prioriza o volume e a qualidade "
+        "dos documentos; quanto à atualização, não há revisitação, pois cada "
+        "URL é visitada uma única vez, o que é suficiente para formar uma "
+        "coleção estática a ser indexada nas etapas seguintes.")
+    rep.paragraph(
+        "O coletor reproduz o laço estudado em aula: uma fila de URLs por "
+        "domínio, um conjunto de URLs conhecidas para deduplicação, a leitura "
+        "do robots.txt, o download com GET, a extração dos campos e dos links "
+        "e o enfileiramento apenas dos links novos que passam no filtro. Cada "
+        "site tem a sua fila, consumida por uma thread, de modo que os dois "
+        "são coletados em paralelo, com no máximo uma requisição por vez a "
+        "cada site. O estado completo é mantido em um banco SQLite, usado só "
+        "para a fila e a retomada, e o HTML bruto é guardado em blocos "
+        "comprimidos; a saída é o arquivo projetos.jsonl.")
+
+    rep.heading(2, "2.3", "Boas maneiras e tolerância a falhas")
+    rep.paragraph(
+        "Toda requisição se identifica por um User-Agent próprio, respeita o "
+        "robots.txt de cada site, lido com a biblioteca protego, e mantém ao "
+        "menos um segundo de espera entre requisições ao mesmo domínio. Em "
+        "respostas 429 (excesso de requisições) ou 503 (indisponível), o "
+        "coletor aplica espera exponencial e, se o limite persistir, coloca "
+        "aquele tipo de página em pausa sem perder a URL. O estado em disco "
+        "permite retomar a coleta do ponto em que parou; durante a coleta "
+        "final, esse mecanismo absorveu as respostas 429 recebidas do GitHub "
+        "e as três URLs bloqueadas pelo robots.txt foram respeitadas.")
+
+    rep.heading(2, "2.4", "Critério de parada e resultados da coleta")
+    rep.paragraph(
+        "A execução de cada site é encerrada quando atinge a meta de páginas "
+        "de projeto salvas, quando a fila se esgota ou por interrupção manual. "
+        "O critério principal foi a obtenção de mais de 50.000 documentos, "
+        "atendendo ao requisito de escala. A coleta final reuniu 52.000 "
+        "projetos, 26.000 de cada site, o que superou a meta. A tabela 1 "
+        "resume a execução.")
+    rep.vspace(4)
+    _table(rep, "Tabela 1 \u2013 Resumo da coleta.",
+           [
+               ("Métrica", "Valor"),
+               ("Projetos coletados", "52.000"),
+               ("Páginas baixadas (total)", "60.511"),
+               ("Erros (total)", "122"),
+               ("Volume baixado (sem gzip)", "15,2 GB"),
+               ("Preenchimento do nome", "100%"),
+               ("Preenchimento do dono", "100%"),
+               ("Preenchimento da descrição", "99,5%"),
+           ],
+           "Fonte: elaborado pelos autores (2026).")
+    rep.paragraph(
+        "Ao final da coleta, a fronteira do GitHub ainda continha mais de 150 "
+        "mil URLs na fila, o que mostra que o critério de parada foi a meta de "
+        "projetos, e não a falta de URLs a visitar. Os projetos foram "
+        "exportados para o arquivo projetos.jsonl, com um projeto por linha, "
+        "que é a entrada da etapa de indexação.")
+
+    # ====================================================================
+    # PARTE 2 — REPRESENTAÇÃO E INDEXAÇÃO
+    # ====================================================================
+    rep.heading(1, "3", "PARTE 2: REPRESENTAÇÃO E INDEXAÇÃO")
+    rep.paragraph(
+        "A segunda etapa transforma os 52.000 projetos coletados em um índice "
+        "invertido próprio, gravado em arquivos, sem o uso de qualquer banco "
+        "de dados. A entrada projetos.jsonl é lida linha a linha e o índice é "
+        "um conjunto de arquivos binários e de texto em formato definido pelos "
+        "autores, escritos e lidos pelo próprio programa.")
+
+    rep.heading(2, "3.1", "Documento, campos e pré-processamento")
+    rep.paragraph(
+        "O documento continua sendo a página de um projeto. Como os dois sites "
+        "têm campos diferentes, o texto é reunido em quatro campos comuns: "
+        "nome, descrição, rótulos e README. A coleção é muito desequilibrada: "
+        "um projeto do GitHub tem, em média, cerca de 939 termos, quase todos "
+        "do README, contra 44 termos de um projeto do SourceForge. Esse "
+        "desequilíbrio é o principal motivo para estudar granularidades "
+        "diferentes na representação.")
+    rep.paragraph(
+        "O pré-processamento abrange a limpeza dos dados, que remove URLs, "
+        "etiquetas HTML residuais, emojis, caracteres invisíveis, entidades e "
+        "hashes, e a análise léxica. O analisador trata termos técnicos com "
+        "símbolos, convertendo \u201cC++\u201d em cpp e \u201cC#\u201d em "
+        "csharp, tokeniza letras e dígitos de qualquer alfabeto, quebra "
+        "compostos e camelCase no nome, transforma sequências de ideogramas em "
+        "bigramas, passa tudo para minúsculas sem acento, remove stopwords de "
+        "inglês e português e aplica o stemmer Snowball (Porter2). A consulta "
+        "passa exatamente pelo mesmo analisador, de modo a cair no mesmo "
+        "vocabulário do índice.")
+
+    rep.heading(2, "3.2", "Leis de Zipf e de Heaps")
+    rep.paragraph(
+        "A coleção obedece às leis empíricas vistas em aula. Pela lei de Zipf, "
+        "a frequência de um termo cai com a sua posição no ranking de "
+        "frequência, com inclinação próxima de \u22121,26 em escala log-log. A "
+        "cauda é enorme: cerca de 64,9% do vocabulário são termos que aparecem "
+        "em um único documento, como nomes de projetos, identificadores de "
+        "código e palavras de outras línguas. Pela lei de Heaps, o vocabulário "
+        "cresce com o número de tokens segundo um expoente estimado em 0,72, "
+        "acima do usual de textos comuns em inglês, porque os READMEs contêm "
+        "muito código e termos em várias línguas.")
+
+    rep.heading(2, "3.3", "Construção e compressão do índice")
+    rep.paragraph(
+        "O índice é construído com o método SPIMI (Single-Pass In-Memory "
+        "Indexing): processos auxiliares analisam os documentos em paralelo, o "
+        "processo principal acumula as postings em blocos, grava cada bloco "
+        "ordenado em disco e, ao final, funde os blocos por fusão de k vias. "
+        "Assim, a memória da construção depende do tamanho do bloco, e não do "
+        "tamanho da coleção. Cada termo é distribuído em uma de dezesseis "
+        "partições pela função crc32, o que permite carregar apenas o léxico "
+        "da partição consultada.")
+    rep.paragraph(
+        "As listas são comprimidas com diferenças (gaps) entre docids "
+        "consecutivos, cada número codificado em Variable Byte, como no "
+        "capítulo 5 de Manning, Raghavan e Schütze (2008). Cada entrada guarda "
+        "o gap do docid, uma máscara de um byte indicando em quais campos o "
+        "termo aparece e a frequência por campo; as posições ficam em arquivo "
+        "separado, lido apenas quando a consulta precisa delas. A compressão "
+        "reduz as listas de postings e posições a 36% do tamanho que teriam "
+        "sem compressão.")
+
+    rep.heading(2, "3.4", "Decisão de granularidade e números do índice")
+    rep.paragraph(
+        "Foram comparadas três granularidades: por documento (todos os campos "
+        "juntos), por campo (frequência de cada campo separada na posting) e "
+        "por chunk (o README dividido em janelas, com a nota do projeto dada "
+        "pela melhor janela). A granularidade por campo foi escolhida por ser "
+        "a menor representação que preserva a informação de campo, necessária "
+        "ao BM25F da etapa seguinte, já que o nome e os rótulos de um projeto "
+        "são sinais muito mais fortes de relevância do que uma linha qualquer "
+        "do README. Os números do índice escolhido aparecem na tabela 2.")
+    rep.vspace(4)
+    _table(rep, "Tabela 2 \u2013 Números do índice escolhido (granularidade "
+                "por campo).",
+           [
+               ("Métrica", "Valor"),
+               ("Documentos (projetos)", "52.000"),
+               ("Vocabulário (termos)", "779.148"),
+               ("Postings (pares termo-unidade)", "9.783.738"),
+               ("Ocorrências (tokens)", "25.575.077"),
+               ("Tempo total de indexação", "97,8 s"),
+               ("Memória de pico", "216 MB"),
+               ("Postings e posições (comprimidas)", "66,8 MB"),
+               ("Postings e posições (sem compressão)", "183,6 MB"),
+           ],
+           "Fonte: elaborado pelos autores (2026).")
+
+    # ====================================================================
+    # PARTE 3 — RECUPERAÇÃO, RANKING E INTERFACE
+    # ====================================================================
+    rep.heading(1, "4", "PARTE 3: RECUPERAÇÃO PELO ÍNDICE INVERTIDO")
     rep.paragraph(
         "A recuperação está implementada na classe Indice, do módulo "
         "indexador/indice.py. O ponto central da avaliação é que a busca "
@@ -644,8 +840,8 @@ def build():
         "listas recuperadas coincidem com um índice calculado por força bruta, "
         "o que comprova a correção da recuperação.")
 
-    # 3 RANKING POR RELEVÂNCIA
-    rep.heading(1, "3", "RANKING POR RELEVÂNCIA (BM25 E BM25F)")
+    # 5 RANKING POR RELEVÂNCIA
+    rep.heading(1, "5", "RANKING POR RELEVÂNCIA (BM25 E BM25F)")
     rep.paragraph(
         "O ranqueamento está na classe Buscador, do módulo "
         "indexador/busca.py. Adotou-se a família BM25, proposta por Robertson "
@@ -653,7 +849,7 @@ def build():
         "com a extensão BM25F descrita por Robertson e Zaragoza (2009), que "
         "atribui pesos diferentes aos campos de um documento.")
 
-    rep.heading(2, "3.1", "Importância do termo (IDF)")
+    rep.heading(2, "5.1", "Importância do termo (IDF)")
     rep.paragraph(
         "A importância de um termo diminui conforme cresce o número de "
         "documentos em que ele ocorre. Utiliza-se o IDF probabilístico do "
@@ -666,7 +862,7 @@ def build():
         "valores negativos de IDF para termos muito comuns, com df maior que "
         "N/2, problema clássico da fórmula original do BM25.")
 
-    rep.heading(2, "3.2", "Saturação da frequência")
+    rep.heading(2, "5.2", "Saturação da frequência")
     rep.paragraph(
         "A frequência de um termo no documento contribui com retornos "
         "decrescentes: a décima ocorrência vale menos que a segunda. O BM25 "
@@ -678,7 +874,7 @@ def build():
         "pois a constante (k1 + 1) é um fator comum que não altera a "
         "ordenação. O valor k1 = 1,2 é o usual da literatura.")
 
-    rep.heading(2, "3.3", "Normalização por comprimento e pesos de campo")
+    rep.heading(2, "5.3", "Normalização por comprimento e pesos de campo")
     rep.paragraph(
         "Documentos longos tendem a ter frequências maiores apenas por serem "
         "longos. O BM25 corrige isso normalizando pelo comprimento da unidade "
@@ -702,7 +898,7 @@ def build():
         "refletindo o fato de que o nome e a descrição de um projeto são "
         "sinais mais fortes de relevância do que o texto longo do README.")
 
-    rep.heading(2, "3.4", "Granularidades de indexação")
+    rep.heading(2, "5.4", "Granularidades de indexação")
     rep.paragraph(
         "O sistema admite três granularidades. Na granularidade por campo, "
         "padrão, há uma unidade por projeto com a frequência de cada campo "
@@ -713,8 +909,8 @@ def build():
         "janela, estratégia conhecida como max passage, útil para READMEs "
         "longos.")
 
-    # 4 INTERFACE COM O USUÁRIO
-    rep.heading(1, "4", "INTERFACE COM O USUÁRIO")
+    # 6 INTERFACE COM O USUÁRIO
+    rep.heading(1, "6", "INTERFACE COM O USUÁRIO")
     rep.paragraph(
         "O trabalho pede uma interface gráfica para o usuário. Optou-se por "
         "uma interface web servida pelo módulo interface/app.py, por três "
@@ -751,10 +947,10 @@ def build():
                     max_w_cm=13.0)
     _caption(rep, "Figura 1 \u2013 Interface web de busca para a consulta "
                   "\u201cmachine learning\u201d.")
-    _caption(rep, "Fonte: elaborado pelos autores (2025).", small=True)
+    _caption(rep, "Fonte: elaborado pelos autores (2026).", small=True)
 
-    # 5 INTEGRAÇÃO E TESTES
-    rep.heading(1, "5", "INTEGRAÇÃO ENTRE AS PARTES E TESTES")
+    # 7 INTEGRAÇÃO E TESTES
+    rep.heading(1, "7", "INTEGRAÇÃO ENTRE AS PARTES E TESTES")
     rep.paragraph(
         "As três partes se integram por arquivos em disco, o que as mantém "
         "desacopladas e permite testar cada uma de forma isolada. O coletor "
@@ -776,9 +972,9 @@ def build():
         "garante, de forma automática, que a interface utiliza o mecanismo de "
         "busca do próprio sistema, e não uma busca à parte.")
 
-    # 6 DECISÕES DE PROJETO E MELHORIAS
-    rep.heading(1, "6", "DECISÕES DE PROJETO E MELHORIAS APÓS A ENTREGA PARCIAL")
-    rep.heading(2, "6.1", "BM25F em vez de modelo vetorial")
+    # 8 DECISÕES DE PROJETO E MELHORIAS
+    rep.heading(1, "8", "DECISÕES DE PROJETO E MELHORIAS APÓS A ENTREGA PARCIAL")
+    rep.heading(2, "8.1", "BM25F em vez de modelo vetorial")
     rep.paragraph(
         "Considerou-se o modelo vetorial com TF-IDF e similaridade do cosseno, "
         "mas optou-se pelo BM25F. A vantagem é que o BM25 satura a frequência, "
@@ -791,7 +987,7 @@ def build():
         "literatura e pesos provisórios, deixando a calibração com "
         "julgamentos de relevância como trabalho futuro.")
 
-    rep.heading(2, "6.2", "Interface web sem framework")
+    rep.heading(2, "8.2", "Interface web sem framework")
     rep.paragraph(
         "Cogitou-se o uso de Flask ou Streamlit, mas optou-se pelo módulo "
         "http.server da biblioteca padrão. A vantagem é não acrescentar "
@@ -800,7 +996,7 @@ def build():
         "framework, como rotas e templates; como a interface é pequena, com "
         "uma página e quatro endpoints, essa ausência não pesou.")
 
-    rep.heading(2, "6.3", "Stemmer opcional para portabilidade")
+    rep.heading(2, "8.3", "Stemmer opcional para portabilidade")
     rep.paragraph(
         "Na entrega parcial, o indexador dependia obrigatoriamente do pacote "
         "externo snowballstemmer. Em uma máquina sem internet, o sistema não "
@@ -812,7 +1008,7 @@ def build():
         "quando o pacote está presente, ele continua sendo usado, por ser um "
         "pouco mais rápido.")
 
-    rep.heading(2, "6.4", "Testes de ranqueamento e de interface")
+    rep.heading(2, "8.4", "Testes de ranqueamento e de interface")
     rep.paragraph(
         "A entrega parcial testava o índice, isto é, a leitura das postings, "
         "mas não o ranqueamento nem a camada de apresentação. Nesta etapa "
@@ -821,28 +1017,16 @@ def build():
         "que a interface web devolve exatamente o resultado do Buscador.")
 
     # 7 RESULTADOS
-    rep.heading(1, "7", "RESULTADOS E NÚMEROS DO SISTEMA")
+    rep.heading(1, "9", "RESULTADOS E NÚMEROS DO SISTEMA")
     rep.paragraph(
-        "A tabela 1 reúne os números do índice completo, construído a partir "
-        "da coleta real de 52.000 projetos, sendo 26.000 de cada site. Esses "
-        "valores evidenciam o efeito da compressão: o índice invertido ocupa "
-        "91,8 MB, contra 183,6 MB que ocuparia sem compressão.")
-    rep.vspace(4)
-    _table(rep, "Tabela 1 \u2013 Números do índice completo (52.000 projetos).",
-           [
-               ("Métrica", "Valor"),
-               ("Documentos (projetos)", "52.000"),
-               ("Vocabulário (termos)", "779.148"),
-               ("Postings (pares termo-unidade)", "9.783.738"),
-               ("Ocorrências (tokens)", "25.575.077"),
-               ("Maior lista de postings (df)", "30.228"),
-               ("Tempo total de indexação", "97,8 s"),
-               ("Memória de pico", "216 MB"),
-               ("Índice invertido (comprimido)", "91,8 MB"),
-               ("Índice invertido (sem compressão)", "183,6 MB"),
-               ("Índice total em disco", "118,7 MB"),
-           ],
-           "Fonte: elaborado pelos autores (2025).")
+        "O tamanho do índice completo, cujos números principais constam da "
+        "tabela 2, evidencia o efeito da compressão: o índice invertido ocupa "
+        "91,8 MB, contra 183,6 MB que ocuparia sem compressão, e o índice "
+        "total em disco soma 118,7 MB, incluindo o léxico, os metadados e os "
+        "comprimentos. A maior lista de postings, do termo mais frequente, tem "
+        "30.228 entradas. Cada consulta ao índice completo lê apenas os bytes "
+        "dos termos pedidos, graças ao léxico por partição e à leitura "
+        "direcionada descrita na seção 4.")
     rep.paragraph(
         "Para a demonstração desta revisão, utilizou-se também um índice de "
         "amostra com 100 projetos, no qual cada consulta é respondida em cerca "
@@ -852,8 +1036,8 @@ def build():
         "trazem apenas um dos termos de forma isolada, o que é exatamente o "
         "efeito esperado do BM25F com maior peso para nome e descrição.")
 
-    # 8 CONCLUSÃO
-    rep.heading(1, "8", "CONCLUSÃO")
+    # 10 CONCLUSÃO
+    rep.heading(1, "10", "CONCLUSÃO")
     rep.paragraph(
         "O sistema cobre o ciclo completo de recuperação da informação: "
         "coleta, indexação com índice invertido comprimido, recuperação "
@@ -886,7 +1070,7 @@ def build():
         "PORTER, Martin F. **The English (Porter2) stemming algorithm.** "
         "Snowball, 2002. Disponível em: "
         "http://snowballstem.org/algorithms/english/stemmer.html. "
-        "Acesso em: 2025.",
+        "Acesso em: 2026.",
 
         "HEAPS, Harold S. **Information retrieval: computational and "
         "theoretical aspects.** New York: Academic Press, 1978.",
@@ -1046,10 +1230,13 @@ def _paginate(d, first_printed_page):
 
 
 def _render_sumario(d, toc, page_index, y_start):
-    """Preenche a página reservada do sumário com os títulos e as páginas."""
-    ops = d.pages[page_index]
+    """Preenche a(s) página(s) reservada(s) do sumário com os títulos e as
+    páginas. Quando o conteúdo não cabe na primeira página reservada, segue na
+    página seguinte (também reservada na montagem)."""
     size = 12
     leading = size * 1.5
+    cur_index = page_index
+    ops = d.pages[cur_index]
     # título SUMÁRIO centralizado
     title = "SUMÁRIO"
     w = text_width(title, 13, bold=True)
@@ -1061,6 +1248,11 @@ def _render_sumario(d, toc, page_index, y_start):
     )
     y -= leading * 2
     for level, number, ttl, pg in toc:
+        # quebra para a próxima página reservada se faltar espaço
+        if y - leading < MARGIN_B and cur_index + 1 < len(d.pages):
+            cur_index += 1
+            ops = d.pages[cur_index]
+            y = y_start
         label = f"{number}  {ttl}" if number else ttl
         font = FONT_BOLD if level == 1 and number else FONT_REGULAR
         indent = 0.0 if level == 1 else (0.8 * CM if level == 2 else 1.6 * CM)
