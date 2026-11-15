@@ -298,6 +298,46 @@ que a interface consulta o índice, e não uma busca à parte.
 
 ![Interface web de busca](evidencias/interface/busca_machine_learning.png)
 
+## 🔎 Como testar a interface
+
+Há duas formas de validar a interface gráfica: o teste automatizado (não
+precisa de navegador) e o teste manual.
+
+**1. Teste automatizado (rápido).** Sobe o servidor numa porta, faz requisições
+HTTP reais e confere as respostas, incluindo que a interface devolve
+exatamente o mesmo resultado do `Buscador`:
+
+    python -m unittest tests.test_busca -v
+
+O teste `test_busca_igual_ao_buscador` é a prova de que a interface não tem
+busca própria. São 12 testes (ranking + interface), concluídos em menos de 1 s.
+
+**2. Teste manual no navegador.** Construa o índice (pode usar a amostra de
+projetos que já vem no repositório) e suba o servidor:
+
+    # índice de amostra (100 projetos), caso ainda não exista
+    mkdir -p data
+    cp evidencias/amostra_projetos.jsonl data/projetos.jsonl
+    python run_indexador.py --processos 1 --saida data/indice
+
+    # sobe a interface e abre http://localhost:8000 no navegador
+    python -m interface.app --indice data/indice --porta 8000
+
+Na página, digite uma consulta (ex.: `machine learning`, `password manager`,
+`game engine c++`), veja o ranking e clique num dos termos analisados para
+abrir as postings daquele termo no índice.
+
+**3. Teste pelos endpoints (opcional, via `curl`).** Com o servidor no ar, as
+rotas podem ser chamadas diretamente:
+
+    curl "http://localhost:8000/api/info"
+    curl "http://localhost:8000/api/buscar?q=machine%20learning&k=3"
+    curl "http://localhost:8000/api/termo?t=python"
+
+> Observação: ao iniciar, pode aparecer o aviso `snowballstemmer não
+> encontrado; usando o Porter2 interno`. É esperado e inofensivo — o sistema
+> funciona sem esse pacote. Para silenciar: `pip install snowballstemmer`.
+
 ## 🧪 Testes
 
     python -m unittest discover -s tests -v
