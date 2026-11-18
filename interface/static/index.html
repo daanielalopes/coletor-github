@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Busca de Projetos de Software Livre</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+  <h1>🔎 Busca de Projetos de Software Livre</h1>
+  <div class="sub" id="infoCorpus">carregando o índice…</div>
+</header>
+<main>
+  <form class="barra" id="form">
+    <input type="text" id="q" placeholder="ex.: machine learning, python web framework, game engine c++" autofocus>
+    <select id="k">
+      <option value="5">5</option>
+      <option value="10" selected>10</option>
+      <option value="20">20</option>
+    </select>
+    <button class="primario" type="submit">Buscar</button>
+  </form>
+  <div class="exemplos">
+    Exemplos:
+    <a data-q="machine learning">machine learning</a>
+    <a data-q="python web framework">python web framework</a>
+    <a data-q="linux terminal">linux terminal</a>
+    <a data-q="password manager">password manager</a>
+    <a data-q="game engine c++">game engine c++</a>
+  </div>
+  <div class="meta" id="meta"></div>
+  <div class="termos" id="termos"></div>
+  <div id="detalhe"></div>
+  <div id="resultados"></div>
+</main>
+<footer>
+  A interface consulta o índice invertido no disco (classe <code>Indice</code>) e ranqueia com
+  BM25/BM25F (classe <code>Buscador</code>) — a mesma busca da linha de comando.
+  Clique num termo para ver a sua entrada no índice (partição, df, cf e postings).
+</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>
