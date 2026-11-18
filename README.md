@@ -267,7 +267,9 @@ invertido, o **ranking** dos documentos por relevância (BM25/BM25F) e a
 - **Interface:** `interface/app.py` é um servidor web escrito **só com a
   biblioteca padrão** (sem Flask/Django). Ele usa exatamente as classes
   `Indice` e `Buscador` — a mesma busca da linha de comando, sem nenhuma busca
-  própria ou simplificada.
+  própria ou simplificada. O frontend fica em arquivos estáticos separados
+  (`interface/static/index.html`, `styles.css` e `app.js`), servidos pelo
+  próprio servidor na rota `/static/`.
 
 ## ▶️ Como executar o sistema completo
 
@@ -337,7 +339,10 @@ A interface gráfica (Parte 3) **não tem nenhuma dependência externa**.
     indexador/busca.py         ranking BM25/BM25F (classe Buscador)
     indexador/porter2.py       stemmer Porter2 em Python puro (alternativa ao pacote)
     buscar.py                  busca pela linha de comando
-    interface/app.py           interface gráfica web (http.server, sem framework)
+    interface/app.py           servidor web (http.server, sem framework) + API JSON
+    interface/static/index.html  página da interface (HTML)
+    interface/static/styles.css  estilos da interface (CSS)
+    interface/static/app.js      lógica da interface no navegador (JS)
     tests/test_busca.py        testes do ranking e da interface
     tests/test_porter2.py      testes do stemmer interno
 

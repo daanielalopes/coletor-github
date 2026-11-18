@@ -4,10 +4,12 @@ Interface gráfica (web) do sistema de recuperação (Parte 3).
 
 É um servidor HTTP escrito só com a biblioteca padrão do Python
 (http.server), sem nenhum framework externo, para não acrescentar
-dependências e rodar em qualquer máquina. A interface **consulta o mesmo
-índice invertido** usado na linha de comando: carrega a classe `Indice`
-(leitura do índice no disco) e o `Buscador` (ranqueamento BM25/BM25F) e não
-tem nenhuma busca própria, simplificada ou paralela.
+dependências e rodar em qualquer máquina. O frontend são arquivos estáticos
+(HTML, CSS e JS) na pasta `interface/static/`, servidos pelo próprio servidor.
+A interface **consulta o mesmo índice invertido** usado na linha de comando:
+carrega a classe `Indice` (leitura do índice no disco) e o `Buscador`
+(ranqueamento BM25/BM25F) e não tem nenhuma busca própria, simplificada ou
+paralela.
 
 Para deixar isso visível ao usuário, cada resposta de busca inclui, além do
 ranking, a entrada do léxico de cada termo da consulta (partição, df e cf) e
@@ -20,7 +22,6 @@ Uso:
 """
 
 import argparse
-import html
 import json
 import os
 import sys
@@ -34,6 +35,20 @@ from indexador.indice import Indice
 # Estado global (carregado uma vez na inicialização do servidor).
 INDICE: Indice = None
 BUSCADOR: Buscador = None
+
+# Pasta dos arquivos estáticos do frontend (HTML, CSS, JS).
+PASTA_ESTATICA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+# Tipos MIME por extensão (só os usados pelo frontend).
+TIPOS_MIME = {
+    ".html": "text/html; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+}
 
 
 # ----------------------------------------------------------------------
@@ -128,10 +143,21 @@ def info():
 
 
 # ----------------------------------------------------------------------
-# Página HTML (servida na raiz)
+# Arquivos estáticos do frontend (interface/static/)
 # ----------------------------------------------------------------------
-def pagina() -> str:
-    return PAGINA_HTML
+def caminho_estatico(nome: str):
+    """Resolve o caminho de um arquivo dentro de PASTA_ESTATICA.
+
+    Devolve None se o arquivo escapar da pasta (proteção contra path
+    traversal como '../') ou se não existir.
+    """
+    nome = nome.lstrip("/")
+    destino = os.path.normpath(os.path.join(PASTA_ESTATICA, nome))
+    if os.path.commonpath([destino, PASTA_ESTATICA]) != PASTA_ESTATICA:
+        return None
+    if not os.path.isfile(destino):
+        return None
+    return destino
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -146,13 +172,30 @@ class Handler(BaseHTTPRequestHandler):
         self._enviar(codigo, json.dumps(dados, ensure_ascii=False).encode("utf-8"),
                      "application/json; charset=utf-8")
 
+    def _arquivo_estatico(self, nome: str) -> bool:
+        """Envia um arquivo estático. Devolve False se não existir."""
+        caminho = caminho_estatico(nome)
+        if caminho is None:
+            return False
+        ext = os.path.splitext(caminho)[1].lower()
+        tipo = TIPOS_MIME.get(ext, "application/octet-stream")
+        with open(caminho, "rb") as f:
+            corpo = f.read()
+        self._enviar(200, corpo, tipo)
+        return True
+
     def do_GET(self) -> None:
         url = urlparse(self.path)
         rota = url.path
         params = parse_qs(url.query)
         try:
             if rota in ("/", "/index.html"):
-                self._enviar(200, pagina().encode("utf-8"), "text/html; charset=utf-8")
+                if not self._arquivo_estatico("index.html"):
+                    self._enviar(500, b"index.html nao encontrado em interface/static/",
+                                 "text/plain; charset=utf-8")
+            elif rota.startswith("/static/"):
+                if not self._arquivo_estatico(rota[len("/static/"):]):
+                    self._enviar(404, b"nao encontrado", "text/plain; charset=utf-8")
             elif rota == "/api/info":
                 self._json(info())
             elif rota == "/api/buscar":
@@ -181,176 +224,6 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, formato, *args) -> None:
         # log enxuto no stderr
         sys.stderr.write("%s - %s\n" % (self.address_string(), formato % args))
-
-
-PAGINA_HTML = """<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Busca de Projetos de Software Livre</title>
-<style>
-  :root { --azul:#2563eb; --cinza:#64748b; --borda:#e2e8f0; --fundo:#f8fafc; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-         color:#0f172a; background:var(--fundo); }
-  header { background:#fff; border-bottom:1px solid var(--borda); padding:20px 24px; }
-  h1 { margin:0; font-size:20px; }
-  .sub { color:var(--cinza); font-size:13px; margin-top:4px; }
-  main { max-width:900px; margin:0 auto; padding:24px; }
-  .barra { display:flex; gap:8px; margin-bottom:12px; }
-  input[type=text] { flex:1; padding:12px 14px; font-size:16px; border:1px solid var(--borda);
-                     border-radius:8px; }
-  select, button { padding:12px 14px; font-size:15px; border:1px solid var(--borda);
-                   border-radius:8px; background:#fff; cursor:pointer; }
-  button.primario { background:var(--azul); color:#fff; border-color:var(--azul); }
-  .exemplos { font-size:13px; color:var(--cinza); margin-bottom:16px; }
-  .exemplos a { color:var(--azul); cursor:pointer; margin-right:10px; text-decoration:none; }
-  .meta { font-size:13px; color:var(--cinza); margin:8px 0 16px; }
-  .termos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px; }
-  .chip { font-size:12px; padding:4px 8px; border-radius:999px; border:1px solid var(--borda);
-          background:#fff; cursor:pointer; }
-  .chip.vazio { color:#b91c1c; border-color:#fecaca; background:#fef2f2; }
-  .chip b { color:var(--azul); }
-  .res { background:#fff; border:1px solid var(--borda); border-radius:10px; padding:14px 16px;
-         margin-bottom:10px; }
-  .res .titulo { font-size:16px; font-weight:600; }
-  .res .titulo a { color:var(--azul); text-decoration:none; }
-  .res .nota { float:right; font-size:13px; color:#fff; background:var(--azul);
-               padding:2px 8px; border-radius:6px; }
-  .res .linha2 { font-size:12px; color:var(--cinza); margin:4px 0; display:flex; gap:10px; flex-wrap:wrap; }
-  .res .trecho { font-size:14px; color:#334155; }
-  .tag { background:var(--fundo); border:1px solid var(--borda); border-radius:6px; padding:1px 6px; }
-  .vazio-res { color:var(--cinza); padding:20px; text-align:center; }
-  #detalhe { background:#0f172a; color:#e2e8f0; border-radius:10px; padding:14px 16px;
-             margin-top:8px; font-family: ui-monospace, Menlo, monospace; font-size:12px;
-             white-space:pre-wrap; display:none; }
-  footer { max-width:900px; margin:0 auto; padding:16px 24px; color:var(--cinza); font-size:12px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>🔎 Busca de Projetos de Software Livre</h1>
-  <div class="sub" id="infoCorpus">carregando o índice…</div>
-</header>
-<main>
-  <form class="barra" id="form">
-    <input type="text" id="q" placeholder="ex.: machine learning, python web framework, game engine c++" autofocus>
-    <select id="k">
-      <option value="5">5</option>
-      <option value="10" selected>10</option>
-      <option value="20">20</option>
-    </select>
-    <button class="primario" type="submit">Buscar</button>
-  </form>
-  <div class="exemplos">
-    Exemplos:
-    <a data-q="machine learning">machine learning</a>
-    <a data-q="python web framework">python web framework</a>
-    <a data-q="linux terminal">linux terminal</a>
-    <a data-q="password manager">password manager</a>
-    <a data-q="game engine c++">game engine c++</a>
-  </div>
-  <div class="meta" id="meta"></div>
-  <div class="termos" id="termos"></div>
-  <div id="detalhe"></div>
-  <div id="resultados"></div>
-</main>
-<footer>
-  A interface consulta o índice invertido no disco (classe <code>Indice</code>) e ranqueia com
-  BM25/BM25F (classe <code>Buscador</code>) — a mesma busca da linha de comando.
-  Clique num termo para ver a sua entrada no índice (partição, df, cf e postings).
-</footer>
-<script>
-const $ = s => document.querySelector(s);
-function esc(t){ return (t||"").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
-async function info(){
-  try {
-    const r = await fetch('/api/info'); const d = await r.json();
-    $('#infoCorpus').textContent =
-      `${d.n_documentos} projetos · vocabulário ${d.vocabulario} termos · `
-      + `${d.postings} postings · granularidade "${d.granularidade}" · `
-      + `stemming ${d.stemming?'on':'off'} · ${d.particoes} partições`;
-  } catch(e){ $('#infoCorpus').textContent = 'índice não carregado'; }
-}
-
-async function detalhe(termo){
-  const box = $('#detalhe');
-  box.style.display = 'block';
-  box.textContent = 'lendo postings de "'+termo+'" no índice…';
-  const r = await fetch('/api/termo?t=' + encodeURIComponent(termo));
-  const d = await r.json();
-  let txt = '';
-  for (const t of d.termos){
-    if (!t.no_indice){ txt += `termo "${t.termo}": não está no índice\\n`; continue; }
-    txt += `termo "${t.termo}"  partição ${t.particao}  df=${t.df}  cf=${t.cf}\\n`;
-    txt += `campos: [${t.campos.join(', ')}]\\n`;
-    for (const p of t.postings){
-      txt += `  unidade ${p.unidade}  tf=${JSON.stringify(p.tf)}  ${p.nome}  ${p.url}\\n`;
-    }
-    txt += '\\n';
-  }
-  box.textContent = txt.trim() || 'sem dados';
-  box.scrollIntoView({behavior:'smooth', block:'nearest'});
-}
-
-async function buscar(q, k){
-  $('#resultados').innerHTML = '<div class="vazio-res">buscando…</div>';
-  $('#termos').innerHTML = ''; $('#meta').textContent = ''; $('#detalhe').style.display='none';
-  const r = await fetch('/api/buscar?q=' + encodeURIComponent(q) + '&k=' + k);
-  const d = await r.json();
-  if (d.erro){ $('#resultados').innerHTML = '<div class="vazio-res">'+esc(d.erro)+'</div>'; return; }
-
-  $('#meta').textContent = `${d.total} resultado(s) em ${d.ms} ms · termos analisados da consulta:`;
-  $('#termos').innerHTML = d.lexico.map(l =>
-    l.no_indice
-      ? `<span class="chip" data-t="${esc(l.termo)}"><b>${esc(l.termo)}</b> · df ${l.df} · cf ${l.cf}</span>`
-      : `<span class="chip vazio" title="não está no índice">${esc(l.termo)} · ausente</span>`
-  ).join('');
-  document.querySelectorAll('#termos .chip[data-t]').forEach(c =>
-    c.onclick = () => detalhe(c.getAttribute('data-t')));
-
-  if (!d.resultados.length){
-    $('#resultados').innerHTML = '<div class="vazio-res">Nenhum projeto encontrado para essa consulta.</div>';
-    return;
-  }
-  $('#resultados').innerHTML = d.resultados.map((x,i) => {
-    const estrelas = (x.estrelas!==null && x.estrelas!==undefined && x.estrelas!=='') ? `⭐ ${esc(''+x.estrelas)}` : '';
-    const linha2 = [
-      `<span class="tag">${esc(x.site)}</span>`,
-      x.linguagem ? `<span class="tag">${esc(x.linguagem)}</span>` : '',
-      x.licenca ? `<span class="tag">${esc(x.licenca)}</span>` : '',
-      estrelas
-    ].filter(Boolean).join(' ');
-    return `<div class="res">
-      <span class="nota">${x.nota.toFixed(2)}</span>
-      <div class="titulo">${i+1}. <a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.nome||x.url)}</a></div>
-      <div class="linha2">${linha2}</div>
-      <div class="trecho">${esc(x.trecho||'')}</div>
-    </div>`;
-  }).join('');
-}
-
-$('#form').addEventListener('submit', e => {
-  e.preventDefault();
-  const q = $('#q').value.trim(); if (!q) return;
-  buscar(q, $('#k').value);
-});
-document.querySelectorAll('.exemplos a').forEach(a =>
-  a.onclick = () => { $('#q').value = a.getAttribute('data-q'); buscar(a.getAttribute('data-q'), $('#k').value); });
-info();
-
-// Consulta pela URL (?q=...&k=...): permite compartilhar um link de busca.
-const url0 = new URLSearchParams(location.search);
-if (url0.get('q')) {
-  $('#q').value = url0.get('q');
-  if (url0.get('k')) $('#k').value = url0.get('k');
-  buscar(url0.get('q'), $('#k').value);
-}
-</script>
-</body>
-</html>"""
 
 
 def main() -> int:

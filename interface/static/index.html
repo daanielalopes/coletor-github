@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-br" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Busca de Projetos de Software Livre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="topo">
+  <div class="topo-conteudo">
+    <div class="marca">
+      <span class="marca-icone" aria-hidden="true">🔎</span>
+      <div>
+        <h1>Busca de Projetos de Software Livre</h1>
+        <p class="sub" id="infoCorpus">carregando o índice…</p>
+      </div>
+    </div>
+    <button id="btnTema" class="btn-tema" type="button" title="Alternar tema" aria-label="Alternar tema">
+      <span class="tema-claro" aria-hidden="true">🌙</span>
+      <span class="tema-escuro" aria-hidden="true">☀️</span>
+    </button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-conteudo">
+    <form class="caixa-busca" id="form" role="search">
+      <span class="busca-icone" aria-hidden="true">🔍</span>
+      <input type="text" id="q" autocomplete="off" spellcheck="false"
+             placeholder="Busque por machine learning, python web framework, game engine c++…" autofocus>
+      <select id="k" title="Nº de resultados" aria-label="Número de resultados">
+        <option value="5">5 resultados</option>
+        <option value="10" selected>10 resultados</option>
+        <option value="20">20 resultados</option>
+        <option value="50">50 resultados</option>
+      </select>
+      <button class="btn-primario" type="submit">Buscar</button>
+    </form>
+    <div class="exemplos" id="exemplos">
+      <span class="exemplos-rotulo">Tente:</span>
+      <button type="button" data-q="machine learning">machine learning</button>
+      <button type="button" data-q="python web framework">python web framework</button>
+      <button type="button" data-q="linux terminal">linux terminal</button>
+      <button type="button" data-q="password manager">password manager</button>
+      <button type="button" data-q="game engine c++">game engine c++</button>
+    </div>
+  </div>
+</section>
+
+<main class="conteudo">
+  <!-- Estado inicial, antes de qualquer busca -->
+  <div id="inicio" class="estado-inicial">
+    <div class="estado-icone" aria-hidden="true">🗂️</div>
+    <h2>Encontre projetos de software livre</h2>
+    <p>
+      Digite uma consulta acima. A interface ranqueia os projetos com
+      <strong>BM25/BM25F</strong> consultando o mesmo índice invertido usado na linha de comando.
+    </p>
+  </div>
+
+  <!-- Barra de resultados: contagem, filtros, ordenação -->
+  <div id="painel" class="painel" hidden>
+    <div class="painel-linha">
+      <div class="meta" id="meta"></div>
+      <div class="ordenacao">
+        <label for="ordenar">Ordenar por</label>
+        <select id="ordenar">
+          <option value="relevancia" selected>Relevância</option>
+          <option value="estrelas">Estrelas</option>
+          <option value="nome">Nome (A–Z)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="filtros" id="filtros">
+      <div class="filtro">
+        <label for="fSite">Site</label>
+        <select id="fSite" data-campo="site"><option value="">Todos</option></select>
+      </div>
+      <div class="filtro">
+        <label for="fLinguagem">Linguagem</label>
+        <select id="fLinguagem" data-campo="linguagem"><option value="">Todas</option></select>
+      </div>
+      <div class="filtro">
+        <label for="fLicenca">Licença</label>
+        <select id="fLicenca" data-campo="licenca"><option value="">Todas</option></select>
+      </div>
+      <button type="button" id="limparFiltros" class="btn-ghost">Limpar filtros</button>
+    </div>
+
+    <div class="termos" id="termos" aria-label="Termos analisados da consulta"></div>
+    <pre id="detalhe" class="detalhe" hidden></pre>
+  </div>
+
+  <div id="resultados" class="resultados"></div>
+</main>
+
+<footer class="rodape">
+  <p>
+    A interface consulta o índice invertido no disco (classe <code>Indice</code>) e ranqueia com
+    BM25/BM25F (classe <code>Buscador</code>) — a mesma busca da linha de comando.
+    Clique num termo para ver a sua entrada no índice (partição, df, cf e postings).
+  </p>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
